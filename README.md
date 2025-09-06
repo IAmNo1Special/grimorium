@@ -40,14 +40,13 @@ Grimorium's magic lies in its two-step discovery and loading process, which is t
 
 ```mermaid
 graph TD
-    A[User: "What's the weather?"] --> B{Agent lacks tool}
-    B --> C[Agent uses Grimorium tool: "I need a spell for weather"]
+    A[User: What's the weather?] --> B{Agent lacks tool}
+    B --> C[Agent uses Grimorium tool: I need a spell for weather]
     C --> D[SpellSync finds `weather_forecast` spell]
     D --> E[Grimorium loads `weather_forecast` into agent]
-    E --> F[Agent confirms: "Spell added"]
-    F --> G[User: "What's the weather?"]
-    G --> H[Agent uses `weather_forecast` tool]
-    H --> I[Agent provides weather]
+    E --> F[Agent confirms: Spell added]
+    F --> G[Agent uses `weather_forecast` tool]
+    G --> H[Agent provides weather]
 ```
 
 ## 🚀 Getting Started
