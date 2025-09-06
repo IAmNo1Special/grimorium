@@ -16,8 +16,12 @@ from google.genai.types import EmbedContentConfig
 from sklearn.metrics.pairwise import cosine_similarity
 from .models import SpellMetadata
 import re
-from datetime import datetime
+from datetime import datetime, timezone
+from dataclasses import asdict
 
+from .spell_registry import spell_registry
+import sys
+import importlib.util
 
 class SpellSync:
     """A magical synchronizer for matching and managing spells based on semantic similarity. 
@@ -293,3 +297,76 @@ class SpellSync:
             if spell.name == spell_name:
                 return spell
         return None
+
+    def sync_spells(self):
+        """
+        Synchronizes the spells from the registry to the embeddings file.
+        
+        This method fetches all registered spells, generates embeddings for their
+        docstrings, and saves the metadata to tools_embeddings.json.
+        """
+        print("Starting spell synchronization...")
+        
+        all_spells = spell_registry.get_all_spells()
+        if not all_spells:
+            print("No spells found in the registry. Nothing to sync.")
+            return
+
+        print(f"Found {len(all_spells)} spells in the registry.")
+        
+        spells_to_sync = []
+        for spell_name, spell_func in all_spells.items():
+            print(f"Processing spell: {spell_name}")
+            
+            docstring = spell_func.__doc__
+            if not docstring:
+                print(f"Warning: Spell '{spell_name}' has no docstring. Skipping.")
+                continue
+            
+            embedding = self._get_embedding(docstring)
+            if embedding is None:
+                print(f"Warning: Could not generate embedding for '{spell_name}'. Skipping.")
+                continue
+            
+            spell_metadata = SpellMetadata(
+                name=spell_name,
+                docstring=docstring,
+                docstring_embedding=embedding,
+                created_at=datetime.now(timezone.utc).isoformat()
+            )
+            spells_to_sync.append(asdict(spell_metadata))
+            
+        tools_path = Path(__file__).parent / 'tools_embeddings.json'
+        print(f"Writing {len(spells_to_sync)} spells to {tools_path}...")
+        
+        with open(tools_path, 'w', encoding='utf-8') as f:
+            json.dump(spells_to_sync, f, indent=4)
+            
+        print("Spell synchronization complete.")
+
+def discover_and_load_spells(path_str: str):
+    """Dynamically discover and load spells from a given path (file or directory)."""
+    path = Path(path_str)
+    files_to_load = []
+    if path.is_file() and path.suffix == '.py':
+        files_to_load.append(path)
+    elif path.is_dir():
+        files_to_load.extend(list(path.rglob("*.py")))
+    else:
+        print(f"Error: Path '{path_str}' is not a valid Python file or directory.")
+        return
+
+    for py_file in files_to_load:
+        # Create a module spec from the file path
+        # The module name needs to be unique, so we can base it on the file path
+        module_name = f"grimorium.discovered_spells.{py_file.stem}"
+        spec = importlib.util.spec_from_file_location(module_name, py_file)
+        if spec and spec.loader:
+            module = importlib.util.module_from_spec(spec)
+            # Add to sys.modules before execution to handle circular imports
+            sys.modules[module_name] = module
+            spec.loader.exec_module(module)
+            print(f"Loaded spells from {py_file}")
+
+
+

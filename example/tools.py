@@ -1,8 +1,10 @@
 from typing import Dict, Any, Optional
+from grimorium.spell_registry import register_spell
 
 
 user_name = "Not currently known. Maybe if you ask, the user will tell you their name.\nYou can the ask the grimorium for a spell to save the user's name."
 
+@register_spell
 def weather_forecast() -> Dict[str, Any]:
     """Gets the current weather forecast for the user's location.
     
@@ -21,6 +23,7 @@ def weather_forecast() -> Dict[str, Any]:
     """
     return {"success": True, "message": "The current weather is sunny with a temperature of 80 degrees Fahrenheit."}
 
+@register_spell
 def get_user_name() -> Dict[str, Any]:
     """Retrieves the name of the currently authenticated user.
 
@@ -35,6 +38,7 @@ def get_user_name() -> Dict[str, Any]:
     """
     return {"success": True, "message": user_name}
 
+@register_spell
 def save_user_name(first_name: str, last_name: Optional[str] = None) -> Dict[str, Any]:
     """Saves the name of the currently authenticated user.
     
@@ -56,6 +60,7 @@ def save_user_name(first_name: str, last_name: Optional[str] = None) -> Dict[str
     return {"success": True, "message": f"User name saved successfully as {user_name}"}
     
 
+@register_spell
 def log_out_fb() -> Dict[str, Any]:
     """Logs out the currently authenticated user from Facebook.
     

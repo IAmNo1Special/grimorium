@@ -10,7 +10,7 @@ from google.genai import types
 
 from . import prompts
 from .spellsync import SpellSync
-import grimorium.tools as tools
+from .spell_registry import spell_registry
 
 
 class Grimorium:
@@ -25,7 +25,9 @@ class Grimorium:
     """
 
     def __init__(
-        self, main_agent: Optional[Agent] = None, model: str = "gemini-2.0-flash"
+        self,
+        main_agent: Optional[Agent] = None,
+        model: str = "gemini-2.0-flash",
     ):
         """Initialize the Grimorium with optional main agent and model."""
         self.main_agent = main_agent
@@ -90,10 +92,16 @@ class Grimorium:
                 print(f"Found matching spell: {spell_name}")
                 
                 if spell_name and self.main_agent:
-                    # Get the function with the spell_name from tools.py
-                    spell_func = getattr(tools, spell_name, None)
-                    
-                    if spell_func and callable(spell_func):
+                    # Get the function with the spell_name from the registry
+                    try:
+                        spell_func = spell_registry.get_spell(spell_name)
+                    except KeyError:
+                        print(f"Error: Spell '{spell_name}' not found in registry.")
+                        return self._create_error_response(
+                            f"[ERROR] Spell '{spell_name}' not found."
+                        )
+
+                    if callable(spell_func):
                         print(f"Found spell function: {spell_func}")
                         self.main_agent.tools.append(spell_func)
                         # TODO: Reset the agent's tools to only include the Grimorium tool.

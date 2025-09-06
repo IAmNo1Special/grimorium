@@ -3,6 +3,7 @@
 This module initializes and runs the root agent with Grimorium integration,
 providing an interactive command-line interface for user interaction.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -12,21 +13,19 @@ import signal
 import sys
 from typing import Optional
 
-# Add the project root to Python path before other imports
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, project_root)  # Add project root to path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # Add current directory to path
-
 try:
     from dotenv import load_dotenv
     from google.adk.agents import Agent
-    from google.adk.runners import Runner
     from google.adk.memory import InMemoryMemoryService
+    from google.adk.runners import Runner
     from google.adk.sessions import InMemorySessionService
-    from config import APP_NAME, USER_ID, SESSION_ID
-    from grimorium.utils import call_agent_async
+
     from grimorium import Grimorium
-   
+    from grimorium.utils import call_agent_async
+
+    from . import tools
+    from .config import APP_NAME, SESSION_ID, USER_ID
+
 except ImportError as e:
     print(f"Error importing required modules: {e}")
     sys.exit(1)
@@ -37,8 +36,12 @@ load_dotenv()
 
 class _NoToolNoise(logging.Filter):
     """Filter out specific warning messages from the logs."""
+
     def filter(self, record: logging.LogRecord) -> bool:
-        return "Warning: there are non-text parts in the response:" not in record.getMessage()
+        return (
+            "Warning: there are non-text parts in the response:"
+            not in record.getMessage()
+        )
 
 
 # Configure logging
@@ -53,11 +56,12 @@ root_agent = Agent(
     instruction="""You are an advanced AI assistant with access to a dynamic set of capabilities.
     When a user makes a request, you can use the available tools (spells) to help them.
     If you don't have the right tool, the Grimorium system will help discover and load it.
-    Be helpful, concise, and focus on solving the user's request effectively."""
+    Be helpful, concise, and focus on solving the user's request effectively.""",
 )
 
 # Initialize Grimorium with the root agent
 grimorium = Grimorium(root_agent)
+
 
 async def run_root_agent() -> None:
     """Run the root agent with interactive command-line interface."""
@@ -70,9 +74,7 @@ async def run_root_agent() -> None:
         # Initialize session
         try:
             await session_service.create_session(
-                app_name=APP_NAME,
-                user_id=USER_ID,
-                session_id=SESSION_ID
+                app_name=APP_NAME, user_id=USER_ID, session_id=SESSION_ID
             )
         except Exception as e:
             print(f"Failed to create session: {e}")
@@ -84,7 +86,7 @@ async def run_root_agent() -> None:
                 app_name=APP_NAME,
                 agent=root_agent,
                 session_service=session_service,
-                memory_service=memory_service
+                memory_service=memory_service,
             )
         except Exception as e:
             print(f"Failed to create runner: {e}")
