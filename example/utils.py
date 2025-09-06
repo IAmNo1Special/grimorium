@@ -3,18 +3,18 @@ import json
 import os
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Type
 
 from dotenv import load_dotenv
 from google import genai
 from google.genai.types import EmbedContentConfig
-from datetime import datetime
 
 # Add the parent directory to the path so we can import the tools module
 sys.path.append(str(Path(__file__).parent.parent))
 
-from example import tools
+from src.grimorium import tools
 
 
 def get_embedding(text: str, max_retries: int = 3) -> Optional[List[float]]:
@@ -41,6 +41,7 @@ def get_embedding(text: str, max_retries: int = 3) -> Optional[List[float]]:
             else:
                 print(f"Failed to get embedding after {max_retries} attempts: {e}")
                 return None
+
 
 def generate_tools_json(
     tools_module: Any, output_file: str = "tools_embeddings.json"
@@ -106,6 +107,7 @@ def generate_tools_json(
         json.dump(tools_data, f, indent=2)
 
     print(f"Successfully generated {output_file} with {len(tools_data)} tools")
+
 
 def main():
     # Generate the tools JSON file
