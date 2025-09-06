@@ -14,7 +14,7 @@ from datetime import datetime
 # Add the parent directory to the path so we can import the tools module
 sys.path.append(str(Path(__file__).parent.parent))
 
-from example import tools
+from src.grimorium import tools
 
 
 def get_embedding(text: str, max_retries: int = 3) -> Optional[List[float]]:
