@@ -30,23 +30,60 @@ Traditional agent frameworks often rely on providing all available tools in the 
 
 ## ⚙️ How It Works
 
-Grimorium's magic lies in its two-step discovery and loading process, which is triggered after the main agent tries to use the `grimorium` tool.
+Grimorium's functionality is split into two main phases: an offline "spell synchronization" phase (for developers) and an online "spell discovery" phase (at runtime).
 
-1. **The Request:**** A user asks the agent to do something for which it doesn't have a tool (e.g., "What's the weather?"). The agent, knowing it can learn, uses the `grimorium` tool to request a spell.
-2. **The Discovery:**** The `grimorium` tool, guided by specific prompts, extracts the core requirement (e.g., "get the current weather"). This description is passed to the `SpellSync` engine.
-3. **The Matching:**** `SpellSync` converts the description into a vector embedding and compares it against the pre-computed embeddings of all available spells, finding the best match via cosine similarity.
-4. **The Learning:**** The `Grimorium` class, via an `after_tool_callback`, receives the name of the best-matching spell. It dynamically retrieves the function from `tools.py` and injects it into the main agent's toolset.
-5. **The Execution:**** The agent receives a confirmation that the spell has been added. The user can now repeat the initial request, and the agent will have the tool to fulfill it.
+### Offline: Spell Synchronization
+
+This phase is about preparing the spellbook (`tools_embeddings.json`) for the agent to use.
+
+1. **Spell Creation**: A developer defines a standard Python function in any file. This function is the "spell."
+2. **Spell Registration**: The developer imports the `register_spell` decorator from `grimorium.spell_registry` and applies it to the function. This adds the spell to a central registry.
+3. **Synchronization**: The developer runs the command `uv run -m grimorium.spellsync`. This script:
+   * Discovers all functions decorated with `@register_spell`.
+   * For each spell, it generates a vector embedding of its docstring using a Google embedding model.
+   * It saves the spell's name, docstring, and the generated embedding into the `tools_embeddings.json` file.
+
+This process creates a pre-computed, searchable index of all available spells.
+
+### Online: Spell Discovery & Loading
+
+This is what happens in real-time when your agent is running.
+
+1. **Initialization**: Your application creates a main agent and passes it to the `Grimorium` class. The `Grimorium` class then:
+   * Creates a special-purpose `grimorium` agent, which is a tool itself.
+   * Injects this `grimorium` tool into the main agent's toolset.
+   * Registers an `after_tool_callback` (`_discover_best_spell`) on the main agent.
+2. **The Request**: A user asks the main agent to do something for which it has no tool (e.g., "What's the weather?").
+3. **The Spell Request**: The main agent, guided by its initial instructions, uses the `grimorium` tool. It passes a natural language description of the tool it needs (e.g., "I need a spell to get the current weather").
+4. **The Discovery**: The `_discover_best_spell` callback is triggered. It takes the agent's description and passes it to the `SpellSync.match()` method.
+5. **The Matching**: The `SpellSync` engine:
+   * Generates a vector embedding for the agent's request.
+   * Calculates the cosine similarity between the request embedding and all the pre-computed spell embeddings in `tools_embeddings.json`.
+   * Identifies the spell with the highest similarity score as the best match.
+6. **The Learning**: The name of the best-matching spell is returned to the `_discover_best_spell` callback. It then:
+   * Retrieves the actual Python function from the `spell_registry`.
+   * Dynamically appends the function to the main agent's `tools` list.
+7. **The Execution**: The `Grimorium` sends a message back to the agent confirming that the spell has been added (e.g., `[SPELL_ADDED] Successfully added: weather_forecast`). The agent can now use the newly acquired tool to fulfill the user's original request.
 
 ```mermaid
 graph TD
-    A[User: What's the weather?] --> B{Agent lacks tool}
-    B --> C[Agent uses Grimorium tool: I need a spell for weather]
-    C --> D[SpellSync finds `weather_forecast` spell]
-    D --> E[Grimorium loads `weather_forecast` into agent]
-    E --> F[Agent confirms: Spell added]
-    F --> G[Agent uses `weather_forecast` tool]
-    G --> H[Agent provides weather]
+    subgraph Offline
+        A[Developer writes Python function] --> B[Decorates with @register_spell];
+        B --> C[Runs 'uv run -m grimorium.spellsync'];
+        C --> D[tools_embeddings.json is created/updated];
+    end
+
+    subgraph Online
+        E[User: ''What's the weather?''] --> F{Agent lacks tool};
+        F --> G[Agent uses Grimorium tool: "I need a weather spell"];
+        G --> H[Grimorium's `after_tool_callback` is triggered];
+        H --> I[SpellSync compares request to `tools_embeddings.json`];
+        I --> J[Finds `weather_forecast` spell];
+        J --> K[Grimorium loads `weather_forecast` function into agent's toolset];
+        K --> L[Agent is notified: "Spell Added"];
+        L --> M[Agent uses `weather_forecast` tool];
+        M --> N[Agent provides the weather];
+    end
 ```
 
 ## 🚀 Getting Started
@@ -84,11 +121,13 @@ grimoire = Grimorium(main_agent=main_agent)
 
 To add a new spell to your Grimorium, you need to perform two steps:
 
-1. **Define the function** in your `tools.py` file with a clear, descriptive docstring.
+1. **Define and Register the Spell**: Create a Python function anywhere in your project. It must have a clear, descriptive docstring and be decorated with `@register_spell`.
 
     ```python
-    # src/grimorium/tools.py
+    # example/tools.py
+    from grimorium import register_spell
 
+    @register_spell
     def get_stock_price(ticker: str) -> dict:
         """
         Retrieves the current stock price for a given ticker symbol.
@@ -103,7 +142,11 @@ To add a new spell to your Grimorium, you need to perform two steps:
         return {"price": 150.0}
     ```
 
-2. **Update the embeddings.** You must run an offline script to generate the vector embedding for the new spell's docstring and add it to `tools_embeddings.json`. This process is not yet automated.
+2. **Update the Embeddings**: Run the synchronization script from your terminal. This will find your new spell, generate its embedding, and add it to the spellbook.
+
+    ```bash
+    uv run -m grimorium.spellsync
+    ```
 
 ## 🔧 Configuration
 
@@ -111,10 +154,10 @@ Grimorium is designed to be configurable via a `config.yaml` file in `~/.grimori
 
 ## 🗺️ Roadmap
 
-* [ ] **Automated Embedding Generation:** A script to automatically update `tools_embeddings.json` when new spells are added.
 * [ ] **Dynamic Spell Reset:** A mechanism to decide when to unload spells that are no longer needed.
 * [ ] **Richer Built-in Spells:** A more comprehensive set of default spells.
 * [ ] **Full Configuration Support:** Complete the implementation of the `config.yaml`-based configuration system.
+* [ ] **Improved Error Handling:** More robust error handling for cases where spells fail to load or execute.
 
 ## 🤝 Contributing
 
