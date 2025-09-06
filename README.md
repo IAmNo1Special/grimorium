@@ -9,34 +9,34 @@
 
 Traditional agent frameworks often rely on providing all available tools in the agent's context, leading to significant overhead. Grimorium's approach, similar to that of MCP-Zero, offers substantial benefits:
 
-*   ** massive Context Reduction:** By only loading tools as they are needed, this framework can reduce token consumption by up to **98%** compared to traditional methods. This leads to faster response times and lower operational costs.
-*   **Improved Scalability & Accuracy:** This approach maintains high tool-selection accuracy even with a vast collection of tools. The MCP-Zero paper demonstrated this with a dataset of over 2,700 tools, a scale where traditional methods suffer from attention dilution.
-*   **Enhanced Autonomy:** Agents become more autonomous and adaptable, capable of tackling complex, multi-domain tasks by building their own toolchains on the fly.
+* **Massive Context Reduction:** By only loading tools as they are needed, this framework can reduce token consumption by up to **98%** compared to traditional methods. This leads to faster response times and lower operational costs.
+* **Improved Scalability & Accuracy:** This approach maintains high tool-selection accuracy even with a vast collection of tools. The MCP-Zero paper demonstrated this with a dataset of over 2,700 tools, a scale where traditional methods suffer from attention dilution.
+* **Enhanced Autonomy:** Agents become more autonomous and adaptable, capable of tackling complex, multi-domain tasks by building their own toolchains on the fly.
 
 ## Key Features
 
-*   **Dynamic Tool Loading:** Agents can request and load new tools at runtime without interrupting their workflow.
-*   **Semantic Search:** Uses vector embeddings to find the most relevant tool for a given task based on natural language descriptions.
-*   **Extensible:** Easily add new "spells" to the agent's repertoire by simply writing a Python function with a descriptive docstring.
-*   **Seamless Integration:** Designed for the `google.adk` framework, but the concepts are portable to other agent-based systems.
-*   **Modern Architecture:** Built with a clean, modular design, using modern Python features like type hints.
+* **Dynamic Tool Loading:** Agents can request and load new tools at runtime without interrupting their workflow.
+* **Semantic Search:** Uses vector embeddings to find the most relevant tool for a given task based on natural language descriptions.
+* **Extensible:** Easily add new "spells" to the agent's repertoire by simply writing a Python function with a descriptive docstring.
+* **Seamless Integration:** Designed for the `google.adk` framework, but the concepts are portable to other agent-based systems.
+* **Modern Architecture:** Built with a clean, modular design, using modern Python features like type hints.
 
 ## Core Components
 
-*   **`Grimorium`:** The main orchestrator. It injects a specialized "grimorium" agent as a tool into the main agent and uses an `after_tool_callback` to trigger the spell discovery and loading process.
-*   **`SpellSync`:** The engine for the semantic search. It loads a pre-computed list of spells and their embeddings, generates embeddings for user queries, and calculates the cosine similarity to find the best match.
-*   **`tools.py`:** The spellbook itself. A module containing the Python functions ("spells") that can be loaded.
-*   **`tools_embeddings.json`:** A pre-computed database of the spells, containing their names, docstrings, and docstring embeddings.
+* **`Grimorium`:** The main orchestrator. It injects a specialized "grimorium" agent as a tool into the main agent and uses an `after_tool_callback` to trigger the spell discovery and loading process.
+* **`SpellSync`:** The engine for the semantic search. It loads a pre-computed list of spells and their embeddings, generates embeddings for user queries, and calculates the cosine similarity to find the best match.
+* **`tools.py`:** The spellbook itself. A module containing the Python functions ("spells") that can be loaded.
+* **`tools_embeddings.json`:** A pre-computed database of the spells, containing their names, docstrings, and docstring embeddings.
 
 ## ⚙️ How It Works
 
 Grimorium's magic lies in its two-step discovery and loading process, which is triggered after the main agent tries to use the `grimorium` tool.
 
-1.  **The Request:** A user asks the agent to do something for which it doesn't have a tool (e.g., "What's the weather?"). The agent, knowing it can learn, uses the `grimorium` tool to request a spell.
-2.  **The Discovery:** The `grimorium` tool, guided by specific prompts, extracts the core requirement (e.g., "get the current weather"). This description is passed to the `SpellSync` engine.
-3.  **The Matching:** `SpellSync` converts the description into a vector embedding and compares it against the pre-computed embeddings of all available spells, finding the best match via cosine similarity.
-4.  **The Learning:** The `Grimorium` class, via an `after_tool_callback`, receives the name of the best-matching spell. It dynamically retrieves the function from `tools.py` and injects it into the main agent's toolset.
-5.  **The Execution:** The agent receives a confirmation that the spell has been added. The user can now repeat the initial request, and the agent will have the tool to fulfill it.
+1. **The Request:**** A user asks the agent to do something for which it doesn't have a tool (e.g., "What's the weather?"). The agent, knowing it can learn, uses the `grimorium` tool to request a spell.
+2. **The Discovery:**** The `grimorium` tool, guided by specific prompts, extracts the core requirement (e.g., "get the current weather"). This description is passed to the `SpellSync` engine.
+3. **The Matching:**** `SpellSync` converts the description into a vector embedding and compares it against the pre-computed embeddings of all available spells, finding the best match via cosine similarity.
+4. **The Learning:**** The `Grimorium` class, via an `after_tool_callback`, receives the name of the best-matching spell. It dynamically retrieves the function from `tools.py` and injects it into the main agent's toolset.
+5. **The Execution:**** The agent receives a confirmation that the spell has been added. The user can now repeat the initial request, and the agent will have the tool to fulfill it.
 
 ```mermaid
 graph TD
@@ -85,7 +85,7 @@ grimoire = Grimorium(main_agent=main_agent)
 
 To add a new spell to your Grimorium, you need to perform two steps:
 
-1.  **Define the function** in your `tools.py` file with a clear, descriptive docstring.
+1. **Define the function** in your `tools.py` file with a clear, descriptive docstring.
 
     ```python
     # src/grimorium/tools.py
@@ -104,7 +104,7 @@ To add a new spell to your Grimorium, you need to perform two steps:
         return {"price": 150.0}
     ```
 
-2.  **Update the embeddings.** You must run an offline script to generate the vector embedding for the new spell's docstring and add it to `tools_embeddings.json`. This process is not yet automated.
+2. **Update the embeddings.** You must run an offline script to generate the vector embedding for the new spell's docstring and add it to `tools_embeddings.json`. This process is not yet automated.
 
 ## 🔧 Configuration
 
@@ -112,10 +112,10 @@ Grimorium is designed to be configurable via a `config.yaml` file in `~/.grimori
 
 ## 🗺️ Roadmap
 
-*   [ ] **Automated Embedding Generation:** A script to automatically update `tools_embeddings.json` when new spells are added.
-*   [ ] **Dynamic Spell Reset:** A mechanism to decide when to unload spells that are no longer needed.
-*   [ ] **Richer Built-in Spells:** A more comprehensive set of default spells.
-*   [ ] **Full Configuration Support:** Complete the implementation of the `config.yaml`-based configuration system.
+* [ ] **Automated Embedding Generation:** A script to automatically update `tools_embeddings.json` when new spells are added.
+* [ ] **Dynamic Spell Reset:** A mechanism to decide when to unload spells that are no longer needed.
+* [ ] **Richer Built-in Spells:** A more comprehensive set of default spells.
+* [ ] **Full Configuration Support:** Complete the implementation of the `config.yaml`-based configuration system.
 
 ## 🤝 Contributing
 
