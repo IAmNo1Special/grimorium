@@ -74,13 +74,13 @@ graph TD
     end
 
     subgraph Online
-        E[User: ''What's the weather?''] --> F{Agent lacks tool};
-        F --> G[Agent uses Grimorium tool: "I need a weather spell"];
+        E[User: 'What's the weather?'] --> F{Agent lacks tool};
+        F --> G[Agent uses Grimorium tool: 'I need a weather spell'];
         G --> H[Grimorium's `after_tool_callback` is triggered];
         H --> I[SpellSync compares request to `tools_embeddings.json`];
         I --> J[Finds `weather_forecast` spell];
         J --> K[Grimorium loads `weather_forecast` function into agent's toolset];
-        K --> L[Agent is notified: "Spell Added"];
+        K --> L[Agent is notified: 'Spell Added'];
         L --> M[Agent uses `weather_forecast` tool];
         M --> N[Agent provides the weather];
     end
