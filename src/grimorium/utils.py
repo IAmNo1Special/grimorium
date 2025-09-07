@@ -46,29 +46,45 @@ async def call_agent_async(
                 try:
                     if event.actions.state_delta and show_state_updates:
                         print("\n")
-                        print(f" [{author}][STATE DELTA UPDATE] ".center(center_width, "="))
+                        print(
+                            f" [{author}][STATE DELTA UPDATE] ".center(
+                                center_width, "="
+                            )
+                        )
                         print(event.actions.state_delta)
                         print("=" * center_width)
                 except Exception as e:
-                    print(f"Error while processing state delta in 'call_agent_async': {e}")
-                
+                    print(
+                        f"Error while processing state delta in 'call_agent_async': {e}"
+                    )
+
                 try:
                     if event.actions.artifact_delta and show_artifact_updates:
                         print("\n")
-                        print(f" [{author}][ARTIFACT DELTA UPDATE] ".center(center_width, "="))
+                        print(
+                            f" [{author}][ARTIFACT DELTA UPDATE] ".center(
+                                center_width, "="
+                            )
+                        )
                         print(event.actions.artifact_delta)
                         print("=" * center_width)
                 except Exception as e:
-                    print(f"Error while processing artifact delta in 'call_agent_async': {e}")
-                
+                    print(
+                        f"Error while processing artifact delta in 'call_agent_async': {e}"
+                    )
+
                 try:
                     if event.actions.transfer_to_agent and show_transfer_to_agent:
                         print("\n")
-                        print(f" [{author}][TRANSFER TO AGENT] ".center(center_width, "="))
+                        print(
+                            f" [{author}][TRANSFER TO AGENT] ".center(center_width, "=")
+                        )
                         print(event.actions.transfer_to_agent)
                         print("=" * center_width)
                 except Exception as e:
-                    print(f"Error while processing transfer to agent in 'call_agent_async': {e}")
+                    print(
+                        f"Error while processing transfer to agent in 'call_agent_async': {e}"
+                    )
             else:
                 try:
                     if show_unknown_events:
@@ -77,7 +93,9 @@ async def call_agent_async(
                         print(event)
                         print("=" * center_width)
                 except Exception as e:
-                    print(f"Error while processing unknown event in 'call_agent_async': {e}")
+                    print(
+                        f"Error while processing unknown event in 'call_agent_async': {e}"
+                    )
             continue
 
         parts = event.content.parts
@@ -108,7 +126,9 @@ async def call_agent_async(
                     )
                     print("=" * center_width)
             except Exception as e:
-                print(f"Error while processing function call in 'call_agent_async': {e}")
+                print(
+                    f"Error while processing function call in 'call_agent_async': {e}"
+                )
             try:
                 if part.function_response and show_function_responses:
                     func_response = part.function_response
@@ -117,7 +137,9 @@ async def call_agent_async(
                     print(func_response.response)
                     print("=" * center_width)
             except Exception as e:
-                print(f"Error while processing function response in 'call_agent_async': {e}")
+                print(
+                    f"Error while processing function response in 'call_agent_async': {e}"
+                )
             try:
                 if part.inline_data and show_inline_data:
                     inline_data = part.inline_data

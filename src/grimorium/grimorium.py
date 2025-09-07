@@ -9,8 +9,8 @@ from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 
 from . import prompts
-from .spellsync import SpellSync
 from .spell_registry import spell_registry
+from .spellsync import SpellSync
 
 
 class Grimorium:
@@ -87,10 +87,10 @@ class Grimorium:
                 if not result["matched_spells"]:
                     print("No matching spells found")
                     return None
-                    
+
                 spell_name = result["matched_spells"][0]
                 print(f"Found matching spell: {spell_name}")
-                
+
                 if spell_name and self.main_agent:
                     # Get the function with the spell_name from the registry
                     try:

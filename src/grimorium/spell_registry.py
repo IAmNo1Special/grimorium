@@ -2,6 +2,7 @@
 
 from typing import Callable, Dict
 
+
 class SpellRegistry:
     """A singleton class to manage the registration of spells."""
 
@@ -29,7 +30,7 @@ class SpellRegistry:
         spell_name = func.__name__
         if spell_name in self._spell_registry:
             print(f"Warning: Spell '{spell_name}' is already registered. Overwriting.")
-        
+
         self._spell_registry[spell_name] = func
         print(f"Registered spell: {spell_name}")
         return func
@@ -43,7 +44,7 @@ class SpellRegistry:
 
         Returns:
             Callable: The spell function.
-        
+
         Raises:
             KeyError: If the spell is not found in the registry.
         """
@@ -52,6 +53,7 @@ class SpellRegistry:
     def get_all_spells(self) -> Dict[str, Callable]:
         """Returns a dictionary of all registered spells."""
         return self._spell_registry.copy()
+
 
 # Create a singleton instance of the SpellRegistry
 spell_registry = SpellRegistry()

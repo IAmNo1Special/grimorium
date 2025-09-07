@@ -8,10 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
-import signal
 import sys
-from typing import Optional
 
 try:
     from dotenv import load_dotenv
@@ -29,6 +26,7 @@ try:
 except ImportError as e:
     print(f"Error importing required modules: {e}")
     sys.exit(1)
+
 
 # Load environment variables
 load_dotenv()
