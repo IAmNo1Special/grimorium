@@ -12,10 +12,13 @@ import sys
 
 try:
     from dotenv import load_dotenv
-    from google.adk.agents import Agent
+    from google.adk.agents import LlmAgent
     from google.adk.memory import InMemoryMemoryService
     from google.adk.runners import Runner
     from google.adk.sessions import InMemorySessionService
+    from google.adk.planners import BuiltInPlanner
+    from google.genai.types import ThinkingConfig
+
 
     from grimorium import Grimorium
     from grimorium.utils import call_agent_async
@@ -47,7 +50,7 @@ logging.basicConfig(level=logging.ERROR)
 logging.getLogger("google_genai.types").addFilter(_NoToolNoise())
 
 # Initialize the root agent
-root_agent = Agent(
+root_agent = LlmAgent(
     name="root_agent",
     model="gemini-2.5-flash",
     description="Root agent that coordinates with Grimorium for spell management.",
@@ -58,7 +61,7 @@ root_agent = Agent(
 )
 
 # Initialize Grimorium with the root agent
-grimorium = Grimorium(root_agent)
+Grimorium(connected_agent=root_agent)
 
 
 async def run_root_agent() -> None:
@@ -72,7 +75,9 @@ async def run_root_agent() -> None:
         # Initialize session
         try:
             await session_service.create_session(
-                app_name=APP_NAME, user_id=USER_ID, session_id=SESSION_ID
+                app_name=APP_NAME,
+                user_id=USER_ID,
+                session_id=SESSION_ID,
             )
         except Exception as e:
             print(f"Failed to create session: {e}")
@@ -97,11 +102,17 @@ async def run_root_agent() -> None:
 
         # Main interaction loop
         while True:
+            center_width = 60
+            print("\n")
+            print(f" [User]>>>[QUERY]>>>[{runner.agent.name}] ".center(center_width, "="))
             query = input("You: ").strip()
+            
             if not query:
                 query = "what's the weather like today and what's my name?"
+                print(f"Default Query: {query}")
             elif query.lower() in ("exit", "quit", "e", "q"):
                 break
+            print("=" * center_width)
 
             try:
                 await call_agent_async(
@@ -109,13 +120,6 @@ async def run_root_agent() -> None:
                     session_id=SESSION_ID,
                     runner=runner,
                     query=query,
-                    show_function_calls=True,
-                    show_function_responses=True,
-                    show_inline_data=True,
-                    show_state_updates=True,
-                    show_artifact_updates=True,
-                    show_transfer_to_agent=True,
-                    show_unknown_events=True,
                     show_final_responses=True,
                 )
             except Exception as e:

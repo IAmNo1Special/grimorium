@@ -22,6 +22,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from .models import SpellMetadata
 from .spell_registry import spell_registry
+from .utils import logger
 
 
 class SpellSync:
@@ -65,11 +66,11 @@ class SpellSync:
             tools_path = Path(__file__).parent / "tools_embeddings.json"
 
             if not tools_path.exists():
-                print(f"Warning: {tools_path} not found. No spells loaded.")
+                logger.warning(f"Warning: {tools_path} not found. No spells loaded.")
                 self.spells_data = []
                 return
 
-            print(f"Loading spells from {tools_path}...")
+            logger.info(f"Loading spells from {tools_path}...")
             with open(tools_path, "r", encoding="utf-8") as f:
                 tools_data = json.load(f)
 
@@ -85,21 +86,21 @@ class SpellSync:
                     )
                     self.spells_data.append(spell_metadata)
                 except KeyError as e:
-                    print(f"Warning: Missing required field in tool data: {e}")
+                    logger.warning(f"Warning: Missing required field in tool data: {e}")
                     continue
 
-            print(
+            logger.info(
                 f"Successfully loaded {len(self.spells_data)} spells from {tools_path}"
             )
 
         except json.JSONDecodeError as e:
-            print(f"Error: Invalid JSON in {tools_path}: {e}")
+            logger.error(f"Error: Invalid JSON in {tools_path}: {e}")
             self.spells_data = []
         except OSError as e:
-            print(f"Error reading {tools_path}: {e}")
+            logger.error(f"Error reading {tools_path}: {e}")
             self.spells_data = []
         except Exception as e:
-            print(f"Unexpected error loading spells: {e}")
+            logger.error(f"Unexpected error loading spells: {e}")
             self.spells_data = []
 
     def extract_spell_request(self, text: str) -> Optional[str]:
@@ -146,10 +147,10 @@ class SpellSync:
             except Exception as e:
                 if attempt < max_retries - 1:
                     wait_time = 2**attempt  # Exponential backoff strategy
-                    print(f"Error getting embedding, retrying in {wait_time}s: {e}")
+                    logger.error(f"Error getting embedding, retrying in {wait_time}s: {e}")
                     time.sleep(wait_time)
                 else:
-                    print(f"Failed to get embedding after {max_retries} attempts: {e}")
+                    logger.error(f"Failed to get embedding after {max_retries} attempts: {e}")
                     return None
 
     def _calculate_arcane_similarity(
@@ -201,51 +202,51 @@ class SpellSync:
             ['get_user_name', 'get_user_profile', ...]
         """
         if not query or not isinstance(query, str) or not query.strip():
-            print("Error: Invalid query")
+            logger.error("Error: Invalid query")
             return []
 
-        print(f"Searching for spells matching: {query[:50]}...")
+        logger.info(f"Searching for spells matching: {query[:50]}...")
 
         # Get embedding for the query
         query_embedding = self._get_embedding(query)
         if query_embedding is None or not isinstance(
             query_embedding, (list, np.ndarray)
         ):
-            print("Error: Failed to get valid query embedding")
+            logger.error("Error: Failed to get valid query embedding")
             return []
 
         # Calculate cosine similarity with all spells
         similarities = []
         for spell in self.spells_data:
-            print(f"Processing spell: {spell.name}")
+            logger.debug(f"Processing spell: {spell.name}")
             try:
                 if not spell or not isinstance(spell, SpellMetadata):
-                    print("Warning: Invalid spell format")
+                    logger.warning("Warning: Invalid spell format")
                     continue
 
                 spell_embedding = spell.docstring_embedding
                 if not spell_embedding or not isinstance(
                     spell_embedding, (list, np.ndarray)
                 ):
-                    print(f"Warning: Invalid embedding for spell {spell.name}")
+                    logger.warning(f"Warning: Invalid embedding for spell {spell.name}")
                     continue
 
                 similarity = self._calculate_arcane_similarity(
                     query_embedding, spell_embedding
                 )
-                print(f"Similarity score for spell {spell.name}: {similarity}")
+                logger.debug(f"Similarity score for spell {spell.name}: {similarity}")
             except Exception as e:
-                print(f"Error processing spell {spell.name}: {str(e)}")
+                logger.error(f"Error processing spell {spell.name}: {str(e)}")
                 continue
             similarities.append((spell.name, similarity))
 
         # Sort by similarity score (descending)
         try:
             similarities.sort(key=lambda x: x[1], reverse=True)
-            print(f"Found {len(similarities)} potential matches")
+            logger.info(f"Found {len(similarities)} potential matches")
             return [spell_name for spell_name, _ in similarities[: self.top_spells]]
         except Exception as e:
-            print(f"Error sorting results: {e}")
+            logger.error(f"Error sorting results: {e}")
             return []
 
     def match(self, input_text: str) -> Dict[str, Any]:
@@ -281,10 +282,10 @@ class SpellSync:
         try:
             spell_request = self.extract_spell_request(input_text)
             if spell_request:
-                print(f"Extracted spell request: {spell_request}")
+                logger.info(f"Extracted spell request: {spell_request}")
                 matched_spells = self.find_matching_spells(spell_request)
                 if matched_spells:
-                    print(f"Found matching spells: {matched_spells}")
+                    logger.info(f"Found matching spells: {matched_spells}")
                     return {
                         "success": bool(matched_spells),
                         "query": input_text,
@@ -292,7 +293,7 @@ class SpellSync:
                     }
 
         except Exception as e:
-            print(f"Error in match(): {str(e)}")
+            logger.error(f"Error in match(): {str(e)}")
             return {
                 "success": False,
                 "error": str(e),
@@ -314,27 +315,27 @@ class SpellSync:
         This method fetches all registered spells, generates embeddings for their
         docstrings, and saves the metadata to tools_embeddings.json.
         """
-        print("Starting spell synchronization...")
+        logger.info("Starting spell synchronization...")
 
         all_spells = spell_registry.get_all_spells()
         if not all_spells:
-            print("No spells found in the registry. Nothing to sync.")
+            logger.info("No spells found in the registry. Nothing to sync.")
             return
 
-        print(f"Found {len(all_spells)} spells in the registry.")
+        logger.info(f"Found {len(all_spells)} spells in the registry.")
 
         spells_to_sync = []
         for spell_name, spell_func in all_spells.items():
-            print(f"Processing spell: {spell_name}")
+            logger.info(f"Processing spell: {spell_name}")
 
             docstring = spell_func.__doc__
             if not docstring:
-                print(f"Warning: Spell '{spell_name}' has no docstring. Skipping.")
+                logger.warning(f"Warning: Spell '{spell_name}' has no docstring. Skipping.")
                 continue
 
             embedding = self._get_embedding(docstring)
             if embedding is None:
-                print(
+                logger.warning(
                     f"Warning: Could not generate embedding for '{spell_name}'. Skipping."
                 )
                 continue
@@ -348,12 +349,12 @@ class SpellSync:
             spells_to_sync.append(asdict(spell_metadata))
 
         tools_path = Path(__file__).parent / "tools_embeddings.json"
-        print(f"Writing {len(spells_to_sync)} spells to {tools_path}...")
+        logger.info(f"Writing {len(spells_to_sync)} spells to {tools_path}...")
 
         with open(tools_path, "w", encoding="utf-8") as f:
             json.dump(spells_to_sync, f, indent=4)
 
-        print("Spell synchronization complete.")
+        logger.info("Spell synchronization complete.")
 
 
 def discover_and_load_spells(path_str: str):
@@ -365,7 +366,7 @@ def discover_and_load_spells(path_str: str):
     elif path.is_dir():
         files_to_load.extend(list(path.rglob("*.py")))
     else:
-        print(f"Error: Path '{path_str}' is not a valid Python file or directory.")
+        logger.error(f"Error: Path '{path_str}' is not a valid Python file or directory.")
         return
 
     for py_file in files_to_load:
@@ -378,4 +379,4 @@ def discover_and_load_spells(path_str: str):
             # Add to sys.modules before execution to handle circular imports
             sys.modules[module_name] = module
             spec.loader.exec_module(module)
-            print(f"Loaded spells from {py_file}")
+            logger.info(f"Loaded spells from {py_file}")
