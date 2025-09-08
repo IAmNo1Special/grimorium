@@ -1,8 +1,15 @@
 import json
+import logging
 from typing import Optional
 
 from google.adk.runners import Runner
 from google.genai import types
+
+# Configure logging
+logging.basicConfig(
+    level=logging.ERROR, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
 
 
 async def call_agent_async(
@@ -22,10 +29,6 @@ async def call_agent_async(
     center_width: int = 60,
 ) -> None:
     """Sends the query to the agent and calls on_message with each response."""
-    print("\n")
-    print(f" [User]>>>[QUERY]>>>[{runner.agent.name}] ".center(center_width, "="))
-    print(query)
-    print("=" * center_width)
     if image_bytes:
         content = types.Content(
             role="user",
@@ -54,7 +57,7 @@ async def call_agent_async(
                         print(event.actions.state_delta)
                         print("=" * center_width)
                 except Exception as e:
-                    print(
+                    logger.error(
                         f"Error while processing state delta in 'call_agent_async': {e}"
                     )
 
@@ -69,7 +72,7 @@ async def call_agent_async(
                         print(event.actions.artifact_delta)
                         print("=" * center_width)
                 except Exception as e:
-                    print(
+                    logger.error(
                         f"Error while processing artifact delta in 'call_agent_async': {e}"
                     )
 
@@ -82,7 +85,7 @@ async def call_agent_async(
                         print(event.actions.transfer_to_agent)
                         print("=" * center_width)
                 except Exception as e:
-                    print(
+                    logger.error(
                         f"Error while processing transfer to agent in 'call_agent_async': {e}"
                     )
             else:
@@ -93,7 +96,7 @@ async def call_agent_async(
                         print(event)
                         print("=" * center_width)
                 except Exception as e:
-                    print(
+                    logger.error(
                         f"Error while processing unknown event in 'call_agent_async': {e}"
                     )
             continue
@@ -115,7 +118,9 @@ async def call_agent_async(
                         print(final_response)
                         print("=" * center_width)
                 except Exception as e:
-                    print(f"Error while processing text in 'call_agent_async': {e}")
+                    logger.error(
+                        f"Error while processing text in 'call_agent_async': {e}"
+                    )
             try:
                 if part.function_call and show_function_calls:
                     func_call = part.function_call
@@ -126,7 +131,7 @@ async def call_agent_async(
                     )
                     print("=" * center_width)
             except Exception as e:
-                print(
+                logger.error(
                     f"Error while processing function call in 'call_agent_async': {e}"
                 )
             try:
@@ -137,7 +142,7 @@ async def call_agent_async(
                     print(func_response.response)
                     print("=" * center_width)
             except Exception as e:
-                print(
+                logger.error(
                     f"Error while processing function response in 'call_agent_async': {e}"
                 )
             try:
@@ -148,4 +153,6 @@ async def call_agent_async(
                     print(json.dumps(inline_data.data))
                     print("=" * center_width)
             except Exception as e:
-                print(f"Error while processing inline data in 'call_agent_async': {e}")
+                logger.error(
+                    f"Error while processing inline data in 'call_agent_async': {e}"
+                )

@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path
 
 from .spellsync import SpellSync, discover_and_load_spells
+from .utils import logger
 
 
 def main():
@@ -16,7 +17,7 @@ def main():
     )
     args = parser.parse_args()
 
-    print(f"Discovering spells in: {Path(args.path).resolve()}")
+    logger.info(f"Discovering spells in: {Path(args.path).resolve()}")
     discover_and_load_spells(args.path)
 
     spell_sync = SpellSync()

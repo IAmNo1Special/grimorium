@@ -2,6 +2,8 @@
 
 from typing import Callable, Dict
 
+from .utils import logger
+
 
 class SpellRegistry:
     """A singleton class to manage the registration of spells."""
@@ -29,10 +31,10 @@ class SpellRegistry:
         """
         spell_name = func.__name__
         if spell_name in self._spell_registry:
-            print(f"Warning: Spell '{spell_name}' is already registered. Overwriting.")
+            logger.warning(f"Warning: Spell '{spell_name}' is already registered. Overwriting.")
 
         self._spell_registry[spell_name] = func
-        print(f"Registered spell: {spell_name}")
+        logger.info(f"Registered spell: {spell_name}")
         return func
 
     def get_spell(self, spell_name: str) -> Callable:
