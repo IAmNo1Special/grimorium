@@ -1,6 +1,9 @@
 from typing import Any, Dict, Optional
 
 import httpx
+from dotenv import load_dotenv
+import os
+
 
 from grimorium.spell_registry import register_spell
 
@@ -31,7 +34,7 @@ async def weather_forecast(city: Optional[str] = None) -> Dict[str, Any]:
         >>> await weather_forecast()
         {'success': True, 'data': {'city': 'Mountain View', ...}, 'message': 'The current weather in Mountain View is sunny with a temperature of 72F.'}
     """
-    api_key = "04cbf6afef43e0930f9a99a8cb362adb"  # Replace with your actual API key
+    api_key = os.getenv("WEATHER_API_KEY")
     if city is None:
         result = await get_user_location()
         city = str(
