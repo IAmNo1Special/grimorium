@@ -10,17 +10,16 @@ import asyncio
 import logging
 import sys
 
+from config import APP_NAME, SESSION_ID, USER_ID
 from dotenv import load_dotenv
 from google.adk.agents import LlmAgent
 from google.adk.memory import InMemoryMemoryService
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 
+from example import tools
 from grimorium import Grimorium
 from grimorium.utils import call_agent_async
-
-
-from config import APP_NAME, SESSION_ID, USER_ID
 
 # Load environment variables
 load_dotenv()
