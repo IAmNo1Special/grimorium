@@ -381,10 +381,13 @@ def discover_and_load_spells(path_str: str):
         # Create a module spec from the file path
         # The module name needs to be unique, so we can base it on the file path
         module_name = f"grimorium.discovered_spells.{py_file.stem}"
-        spec = importlib.util.spec_from_file_location(module_name, py_file)
-        if spec and spec.loader:
-            module = importlib.util.module_from_spec(spec)
-            # Add to sys.modules before execution to handle circular imports
-            sys.modules[module_name] = module
-            spec.loader.exec_module(module)
-            logger.info(f"Loaded spells from {py_file}")
+        try:
+            spec = importlib.util.spec_from_file_location(module_name, py_file)
+            if spec and spec.loader:
+                module = importlib.util.module_from_spec(spec)
+                # Add to sys.modules before execution to handle circular imports
+                sys.modules[module_name] = module
+                spec.loader.exec_module(module)
+                logger.info(f"Loaded spells from {py_file}")
+        except Exception as e:
+            logger.warning(f"Warning: Failed to load spells from {py_file}: {e}")

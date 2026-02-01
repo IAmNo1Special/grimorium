@@ -7,7 +7,7 @@ The Grimorium is a dynamic spell management system that automatically discovers 
 ## How It Works
 
 ### 1. Automatic Spell Discovery
-- When a user makes a request, the Grimorium analyzes it using semantic matching
+- When a request is made, the Grimorium analyzes it using semantic matching
 - The system finds the most relevant spell from the available collection
 - The matching spell is automatically added to your available tools
 
@@ -83,11 +83,8 @@ spells (tools/functions/capabilities) to complete user requests.
   - Assume it's a spell(tool/function/capability) that can be loaded from the grimorium
 
 ### Step 2: Requesting a Spell
+- Use the Grimorium tool to request the needed spell(tool/function/capability)
 - Be **specific** and **clear** in your request
-- Use the format:
-  ```
-  I need a spell to [specific action]
-  ```
 - Example requests:
   - "I need a spell to get the current weather."
   - "I need a spell to get the user's name."

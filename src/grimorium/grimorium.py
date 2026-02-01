@@ -2,13 +2,13 @@
 
 from typing import Optional
 
-from google.adk.agents import Agent
+from google.adk.agents import BaseAgent, LlmAgent
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.tools.agent_tool import AgentTool
 from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 
-from . import prompts
+from .prompts import grimorium_description, grimorium_instruction, grimorium_usage_guide
 from .spell_registry import spell_registry
 from .spellsync import SpellSync
 from .utils import logger
@@ -27,11 +27,12 @@ class Grimorium:
 
     def __init__(
         self,
-        connected_agent: Optional[Agent] = None,
+        connected_agent: Optional[BaseAgent] = None,
         model: str = "gemini-2.0-flash",
     ):
         """Initialize the Grimorium with optional main agent and model."""
         self.connected_agent = connected_agent
+        self.default_tools = connected_agent.tools.copy()
         self.model = model
         self.spell_sync = SpellSync()
 
@@ -40,21 +41,26 @@ class Grimorium:
 
     def _setup_connected_agent(self) -> None:
         """Set up the main agent with the Grimorium tool."""
-        grimorium_agent = Agent(
+
+        grimorium_agent = LlmAgent(
             name="grimorium",
             model=self.model,
-            description=prompts.grimorium_description,
-            instruction=prompts.grimorium_instruction,
+            description=grimorium_description,
+            instruction=grimorium_instruction,
             output_key="spell_request",
         )
 
         if self.connected_agent:
+
             logger.info(f"Adding Grimorium tool to {self.connected_agent.name}")
             self.connected_agent.tools.append(AgentTool(grimorium_agent))
             logger.info(f"Grimorium tool added to {self.connected_agent.name}")
+
             logger.info(f"Updating {self.connected_agent.name}'s instruction")
             self._update_instruction()
             logger.info(f"Updated {self.connected_agent.name}'s instruction")
+
+            logger.info(f"Updating {self.connected_agent.name}'s after_tool_callback")
             self.connected_agent.after_tool_callback = self._discover_best_spell
             logger.info(f"Updated {self.connected_agent.name}'s after_tool_callback")
 
@@ -65,6 +71,7 @@ class Grimorium:
                 tool
                 for tool in self.connected_agent.tools
                 if hasattr(tool, "agent") and tool.agent.name == "grimorium"
+                or tool in self.default_tools
             ]
 
     async def _discover_best_spell(
@@ -98,7 +105,9 @@ class Grimorium:
                     try:
                         spell_func = spell_registry.get_spell(spell_name)
                     except KeyError:
-                        logger.error(f"Error: Spell '{spell_name}' not found in registry.")
+                        logger.error(
+                            f"Error: Spell '{spell_name}' not found in registry."
+                        )
                         return f"[ERROR] Spell '{spell_name}' not found."
 
                     if callable(spell_func):
@@ -106,8 +115,8 @@ class Grimorium:
                         self.connected_agent.tools.append(spell_func)
                         # TODO: Reset the agent's tools to only include the Grimorium tool.
                         # TODO: But when is the best time to do this?
-                        # self.connected_agent.after_agent_callback = self._reset_spells
-                        success_message = f"[SPELL_ADDED] {spell_name} was successfully added. You can now use {spell_name} to handle your request."
+                        self.connected_agent.after_agent_callback = self._reset_spells
+                        success_message = f"[SPELL_ADDED] {spell_name} was successfully added. You can now use {spell_name} to handle your request. REMEMBER: The spell will be unloaded after this turn."
                         return success_message
             logger.warning("No matching spells found")
             return "[NO_SPELL] No suitable spell found for this request. Try rephrasing your request."
@@ -123,4 +132,4 @@ class Grimorium:
         if not hasattr(self.connected_agent, "instruction"):
             self.connected_agent.instruction = ""
 
-        self.connected_agent.instruction += prompts.grimorium_usage_guide
+        self.connected_agent.instruction += grimorium_usage_guide
