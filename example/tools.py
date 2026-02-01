@@ -4,6 +4,9 @@ import httpx
 
 from grimorium.spell_registry import register_spell
 
+# Load environment variables
+load_dotenv()
+
 user_name = "Not currently known. Maybe if you ask, the user will tell you their name.\nYou can the ask the grimorium for a spell to save the user's name."
 
 
