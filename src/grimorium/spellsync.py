@@ -147,10 +147,14 @@ class SpellSync:
             except Exception as e:
                 if attempt < max_retries - 1:
                     wait_time = 2**attempt  # Exponential backoff strategy
-                    logger.error(f"Error getting embedding, retrying in {wait_time}s: {e}")
+                    logger.error(
+                        f"Error getting embedding, retrying in {wait_time}s: {e}"
+                    )
                     time.sleep(wait_time)
                 else:
-                    logger.error(f"Failed to get embedding after {max_retries} attempts: {e}")
+                    logger.error(
+                        f"Failed to get embedding after {max_retries} attempts: {e}"
+                    )
                     return None
 
     def _calculate_arcane_similarity(
@@ -330,7 +334,9 @@ class SpellSync:
 
             docstring = spell_func.__doc__
             if not docstring:
-                logger.warning(f"Warning: Spell '{spell_name}' has no docstring. Skipping.")
+                logger.warning(
+                    f"Warning: Spell '{spell_name}' has no docstring. Skipping."
+                )
                 continue
 
             embedding = self._get_embedding(docstring)
@@ -366,7 +372,9 @@ def discover_and_load_spells(path_str: str):
     elif path.is_dir():
         files_to_load.extend(list(path.rglob("*.py")))
     else:
-        logger.error(f"Error: Path '{path_str}' is not a valid Python file or directory.")
+        logger.error(
+            f"Error: Path '{path_str}' is not a valid Python file or directory."
+        )
         return
 
     for py_file in files_to_load:
