@@ -42,35 +42,23 @@ class Grimorium:
     def _setup_connected_agent(self) -> None:
         """Set up the main agent with the Grimorium tool."""
 
-        grimorium_agent = LlmAgent(
-            name="grimorium",
-            model=self.model,
-            description=grimorium_description,
-            instruction=grimorium_instruction,
-            output_key="spell_request",
-        )
-
         if self.connected_agent:
 
-            logger.info(f"Adding Grimorium tool to {self.connected_agent.name}")
-            self.connected_agent.tools.append(AgentTool(grimorium_agent))
-            logger.info(f"Grimorium tool added to {self.connected_agent.name}")
+            self._update_tools()
 
-            logger.info(f"Updating {self.connected_agent.name}'s instruction")
             self._update_instruction()
-            logger.info(f"Updated {self.connected_agent.name}'s instruction")
 
-            logger.info(f"Updating {self.connected_agent.name}'s after_tool_callback")
-            self.connected_agent.after_tool_callback = self._discover_best_spell
-            logger.info(f"Updated {self.connected_agent.name}'s after_tool_callback")
+            self._update_after_tool_callback()
 
     async def _reset_spells(self, callback_context: CallbackContext) -> None:
         """Reset the agent's tools to only include the Grimorium tool."""
+        logger.info("Resetting agent's tools to only include the Grimorium tool.")
         if self.connected_agent and hasattr(self.connected_agent, "tools"):
             self.connected_agent.tools = [
                 tool
                 for tool in self.connected_agent.tools
-                if hasattr(tool, "agent") and tool.agent.name == "grimorium"
+                if hasattr(tool, "agent")
+                and tool.agent.name == "grimorium"
                 or tool in self.default_tools
             ]
 
@@ -124,8 +112,22 @@ class Grimorium:
             logger.error(f"[ERROR] An error occurred while finding a spell: {e}")
             return f"[ERROR] An error occurred while finding a spell: {e}"
 
+    def _update_tools(self):
+        """Update the main agent's tools to include the Grimorium tool."""
+        logger.info(f"Adding Grimorium tool to {self.connected_agent.name}")
+        grimorium_agent = LlmAgent(
+            name="grimorium",
+            model=self.model,
+            description=grimorium_description,
+            instruction=grimorium_instruction,
+            output_key="spell_request",
+        )
+        self.connected_agent.tools.append(AgentTool(grimorium_agent))
+        logger.info(f"Grimorium tool added to {self.connected_agent.name}")
+
     def _update_instruction(self) -> None:
         """Update the main agent's global instruction to include Grimorium usage."""
+        logger.info(f"Updating {self.connected_agent.name}'s instruction")
         if not self.connected_agent:
             return
 
@@ -133,3 +135,12 @@ class Grimorium:
             self.connected_agent.instruction = ""
 
         self.connected_agent.instruction += grimorium_usage_guide
+        logger.info(f"Updated {self.connected_agent.name}'s instruction")
+
+    def _update_after_tool_callback(self):
+        """Update the main agent's after_tool_callback to include Grimorium usage."""
+        logger.info(f"Updating {self.connected_agent.name}'s after_tool_callback")
+
+        self.connected_agent.after_tool_callback = self._discover_best_spell
+
+        logger.info(f"Updated {self.connected_agent.name}'s after_tool_callback")

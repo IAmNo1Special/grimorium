@@ -2,7 +2,10 @@
 
 from typing import Callable, Dict
 
-from .utils import logger
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 class SpellRegistry:
@@ -31,7 +34,9 @@ class SpellRegistry:
         """
         spell_name = func.__name__
         if spell_name in self._spell_registry:
-            logger.warning(f"Warning: Spell '{spell_name}' is already registered. Overwriting.")
+            logger.warning(
+                f"Warning: Spell '{spell_name}' is already registered. Overwriting."
+            )
 
         self._spell_registry[spell_name] = func
         logger.info(f"Registered spell: {spell_name}")

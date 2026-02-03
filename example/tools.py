@@ -1,9 +1,8 @@
+import os
 from typing import Any, Dict, Optional
 
 import httpx
 from dotenv import load_dotenv
-import os
-
 
 from grimorium.spell_registry import register_spell
 

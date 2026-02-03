@@ -10,6 +10,7 @@ import asyncio
 import logging
 import sys
 
+import tools
 from config import APP_NAME, SESSION_ID, USER_ID
 from dotenv import load_dotenv
 from google.adk.agents import LlmAgent
@@ -17,7 +18,6 @@ from google.adk.memory import InMemoryMemoryService
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 
-from example import tools
 from grimorium import Grimorium
 from grimorium.utils import call_agent_async
 
@@ -35,31 +35,21 @@ class _NoToolNoise(logging.Filter):
         )
 
 
-# Configure logging
-logging.basicConfig(level=logging.ERROR)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 logging.getLogger("google_genai.types").addFilter(_NoToolNoise())
 
+# Initialize the root agent
+root_agent = LlmAgent(
+    name="my_agent",
+    model="gemini-2.5-flash",
+    description="Agent that help the user.",
+    instruction="""You are an advanced AI assistant.
+    Be helpful, concise, and focus on solving the user's request effectively.""",
+)
 
-def create_grimorium_agent() -> LlmAgent:
-
-    # Initialize the root agent
-    grim_agent = LlmAgent(
-        name="grim_agent",
-        model="gemini-2.5-flash",
-        description="Agent that coordinates with Grimorium for spell management.",
-        instruction="""You are an advanced AI assistant with access to a dynamic set of capabilities.
-        When a user makes a request, you can use the available tools (spells) to help them.
-        If you don't have the right tool(spell), use the Grimorium tool to discover and load the needed tool(spell).
-        Be helpful, concise, and focus on solving the user's request effectively.""",
-    )
-
-    # Initialize Grimorium with the root agent
-    Grimorium(connected_agent=grim_agent)
-
-    return grim_agent
-
-
-root_agent = create_grimorium_agent()
+# Initialize Grimorium with the root agent
+Grimorium(connected_agent=root_agent)
 
 
 async def run_grimorium_agent() -> None:
@@ -78,7 +68,7 @@ async def run_grimorium_agent() -> None:
                 session_id=SESSION_ID,
             )
         except Exception as e:
-            print(f"Failed to create session: {e}")
+            logger.error(f"Failed to create session: {e}")
             return
 
         try:
@@ -90,13 +80,13 @@ async def run_grimorium_agent() -> None:
                 memory_service=memory_service,
             )
         except Exception as e:
-            print(f"Failed to create runner: {e}")
+            logger.error(f"Failed to create runner: {e}")
             return
 
-        print("\n" + "=" * 60)
-        print("Grimorium Interactive Shell".center(60))
-        print("Type 'exit', 'quit', 'e', or 'q' to quit".center(60))
-        print("=" * 60 + "\n")
+        logger.info("\n" + "=" * 60)
+        logger.info("Grimorium Interactive Shell".center(60))
+        logger.info("Type 'exit', 'quit', 'e', or 'q' to quit".center(60))
+        logger.info("=" * 60 + "\n")
 
         # Main interaction loop
         while True:
@@ -104,15 +94,15 @@ async def run_grimorium_agent() -> None:
             if query.lower() in ("exit", "quit", "e", "q"):
                 break
             center_width = 60
-            print("\n")
-            print(
+            logger.info("\n")
+            logger.info(
                 f" [User]>>>[QUERY]>>>[{runner.agent.name}] ".center(center_width, "=")
             )
 
             if not query:
                 query = "what's the weather like today and what's my name?"
-                print(f"Default Query: {query}")
-            print("=" * center_width)
+                logger.info(f"Default Query: {query}")
+            logger.info("=" * center_width)
 
             try:
                 await call_agent_async(
@@ -125,9 +115,9 @@ async def run_grimorium_agent() -> None:
                     show_final_responses=True,
                 )
             except Exception as e:
-                print(f"Error in 'call_agent_async' call in 'run_root_agent': {e}")
+                logger.error(f"Error in 'call_agent_async' call in 'run_root_agent': {e}")
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        logger.error(f"An unexpected error occurred: {e}")
 
 
 if __name__ == "__main__":
@@ -136,5 +126,5 @@ if __name__ == "__main__":
     try:
         asyncio.run(run_grimorium_agent())
     except Exception as e:
-        print(f"Fatal error: {e}")
+        logger.error(f"Fatal error: {e}")
         sys.exit(1)

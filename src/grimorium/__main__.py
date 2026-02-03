@@ -1,16 +1,20 @@
 import argparse
+import logging
 from pathlib import Path
 
-from .spellsync import SpellSync, discover_and_load_spells
-from .utils import logger
+from .spellsync import SpellSync
+from .utils import discover_and_load_spells
 
+logger = logging.getLogger(__name__)
 
 def main():
     parser = argparse.ArgumentParser(
         description="Synchronize spells for the Grimorium."
     )
     parser.add_argument(
-        "path",
+        "--path",
+        "-p",
+        type=str,
         nargs="?",
         default=".",
         help="The path (file or directory) to search for spells (default: current directory).",
@@ -22,7 +26,6 @@ def main():
 
     spell_sync = SpellSync()
     spell_sync.sync_spells()
-
 
 if __name__ == "__main__":
     main()

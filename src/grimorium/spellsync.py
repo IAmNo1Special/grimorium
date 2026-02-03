@@ -4,10 +4,9 @@ This module provides functionality to register, discover, and manage magical spe
 using semantic similarity and function decoration.
 """
 
-import importlib.util
 import json
+import logging
 import re
-import sys
 import time
 from dataclasses import asdict
 from datetime import datetime, timezone
@@ -22,7 +21,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from .models import SpellMetadata
 from .spell_registry import spell_registry
-from .utils import logger
+
+logger = logging.getLogger(__name__)
 
 
 class SpellSync:
@@ -361,33 +361,3 @@ class SpellSync:
             json.dump(spells_to_sync, f, indent=4)
 
         logger.info("Spell synchronization complete.")
-
-
-def discover_and_load_spells(path_str: str):
-    """Dynamically discover and load spells from a given path (file or directory)."""
-    path = Path(path_str)
-    files_to_load = []
-    if path.is_file() and path.suffix == ".py":
-        files_to_load.append(path)
-    elif path.is_dir():
-        files_to_load.extend(list(path.rglob("*.py")))
-    else:
-        logger.error(
-            f"Error: Path '{path_str}' is not a valid Python file or directory."
-        )
-        return
-
-    for py_file in files_to_load:
-        # Create a module spec from the file path
-        # The module name needs to be unique, so we can base it on the file path
-        module_name = f"grimorium.discovered_spells.{py_file.stem}"
-        try:
-            spec = importlib.util.spec_from_file_location(module_name, py_file)
-            if spec and spec.loader:
-                module = importlib.util.module_from_spec(spec)
-                # Add to sys.modules before execution to handle circular imports
-                sys.modules[module_name] = module
-                spec.loader.exec_module(module)
-                logger.info(f"Loaded spells from {py_file}")
-        except Exception as e:
-            logger.warning(f"Warning: Failed to load spells from {py_file}: {e}")
