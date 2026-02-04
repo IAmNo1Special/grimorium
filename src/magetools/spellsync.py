@@ -14,6 +14,7 @@ from .adapters import ChromaVectorStore, GoogleGenAIProvider
 from .constants import (
     COLLECTION_ATTR_NAME,
     DB_FOLDER_NAME,
+    GRIMORIUMS_INDEX_NAME,
     MAGETOOLS_DIR_NAME,
     STANDARD_COLLECTION_NAME,
 )
@@ -184,6 +185,76 @@ class SpellSync:
         # Return just the spell IDs (limited by top_spells)
         return [match[0] for match in filtered_matches][: self.top_spells]
 
+    def find_relevant_grimoriums(self, query: str) -> List[dict[str, Any]]:
+        """Find Grimoriums (Collections) that match the query."""
+        if not query:
+            return []
+
+        logger.info(f"Searching for Grimoriums matching: {query}...")
+        try:
+            master_index = self.vector_store.get_or_create_collection(
+                name=GRIMORIUMS_INDEX_NAME, embedding_function=self.embedding_function
+            )
+
+            results = master_index.query(
+                query_texts=[query],
+                n_results=self.top_spells,  # reuse top_spells limit for now
+                include=["documents", "metadatas", "distances"],
+            )
+
+            matches = []
+            if results and results["ids"] and results["ids"][0]:
+                for i, g_id in enumerate(results["ids"][0]):
+                    dist = results["distances"][0][i]
+                    if dist <= self.distance_threshold:
+                        meta = results["metadatas"][0][i]
+                        doc = results["documents"][0][i]
+                        matches.append(
+                            {
+                                "grimorium_id": g_id,
+                                "description": doc,
+                                "metadata": meta,
+                                "distance": dist,
+                            }
+                        )
+
+            return sorted(matches, key=lambda x: x["distance"])
+
+        except Exception as e:
+            logger.error(f"Failed to search grimoriums: {e}")
+            return []
+
+    def find_spells_within_grimorium(self, grimorium_id: str, query: str) -> List[str]:
+        """Find spells within a specific Grimorium."""
+        logger.info(f"Searching for '{query}' in Grimorium '{grimorium_id}'...")
+
+        # Verify it's an allowed collection/grimorium
+        if self.allowed_collections and grimorium_id not in self.allowed_collections:
+            logger.warning(f"Access denied to Grimorium '{grimorium_id}'")
+            return []
+
+        try:
+            collection = self.vector_store.get_collection(
+                name=grimorium_id, embedding_function=self.embedding_function
+            )
+
+            results = collection.query(
+                query_texts=[query], n_results=self.top_spells, include=["distances"]
+            )
+
+            matches = []
+            if results and results["ids"] and results["ids"][0]:
+                for i, spell_id in enumerate(results["ids"][0]):
+                    dist = results["distances"][0][i]
+                    if dist <= self.distance_threshold:
+                        matches.append(spell_id)
+
+            return matches
+
+        except Exception as e:
+            logger.error(f"Failed to search inside Grimorium '{grimorium_id}': {e}")
+            return []
+
     def validate_spell_access(self, spell_name: str) -> bool:
         """Check if a spell is allowed to be accessed by this instance."""
         # If no restrictions, everything is allowed
@@ -213,6 +284,106 @@ class SpellSync:
         except Exception as e:
             logger.error(f"Error validating spell access: {e}")
             return False
+
+    def sync_grimoriums_metadata(self):
+        """Synchronizes high-level Grimorium metadata to the master index."""
+        logger.info("Syncing Grimorium metadata...")
+
+        # Get the master index collection
+        master_index = self.vector_store.get_or_create_collection(
+            name=GRIMORIUMS_INDEX_NAME, embedding_function=self.embedding_function
+        )
+
+        # Iterate through known collections (buckets)
+        # We can reuse the logic from sync_spells or simple filesystem iteration
+        # For now, let's walk the filesystem again to capture descriptions
+
+        folders = [
+            d
+            for d in self.MAGETOOLS_ROOT.iterdir()
+            if d.is_dir()
+            and not d.name.startswith((".", "_"))
+            and d.name != self.DB_FOLDER_NAME
+        ]
+
+        ids = []
+        documents = []
+        metadatas = []
+
+        for folder in folders:
+            grimorium_id = folder.name
+
+            # Check for existing summary file
+            summary_path = folder / "grimorium_summary.md"
+            description = ""
+
+            if summary_path.exists():
+                description = summary_path.read_text(encoding="utf-8")
+
+            # If missing or empty, generate it!
+            if not description:
+                logger.info(f"Auto-generating summary for Grimorium: {grimorium_id}")
+                spell_docs = []
+                # Gather docstrings from all spells in this folder
+                for py_file in folder.rglob("*.py"):
+                    if py_file.name.startswith((".", "_")):
+                        continue
+                    try:
+                        source = py_file.read_text(encoding="utf-8")
+                        module = ast.parse(source)
+                        doc = ast.get_docstring(module)
+                        if doc:
+                            spell_docs.append(f"Spell in {py_file.stem}: {doc}")
+                    except Exception:
+                        continue
+
+                if spell_docs:
+                    description = self._generate_grimorium_summary(
+                        grimorium_id, spell_docs
+                    )
+                    # Persist it
+                    try:
+                        summary_path.write_text(description, encoding="utf-8")
+                    except Exception as e:
+                        logger.error(f"Failed to write summary for {grimorium_id}: {e}")
+
+            if not description:
+                description = f"Collection of spells in {grimorium_id}"
+
+            ids.append(grimorium_id)
+            documents.append(description)
+            metadatas.append(
+                {
+                    "grimorium_id": grimorium_id,
+                    "spell_count": len(list(folder.glob("*.py"))),  # Rough count
+                }
+            )
+
+        if ids:
+            master_index.upsert(ids=ids, documents=documents, metadatas=metadatas)
+            logger.info(f"Updated metadata for {len(ids)} Grimoriums.")
+
+    def _generate_grimorium_summary(
+        self, grimorium_name: str, spell_docs: List[str]
+    ) -> str:
+        """Uses the AI Provider to generate a high-quality summary of the Grimorium."""
+        prompt = f"""
+You are the Librarian of the Arcane. 
+Analyze the following list of 'Spells' (tools/functions) contained within the '{grimorium_name}' Grimorium.
+Generate a concise but comprehensive summary of what this Grimorium is capable of. 
+Focus on the collective capabilities and the types of problems it solves. 
+Do not list every single spell, but highlight key themes.
+
+Spells:
+{chr(10).join(spell_docs)[:8000]} 
+
+Summary:
+"""
+        try:
+            return self.embedding_provider.generate_content(prompt)
+        except Exception as e:
+            logger.error(f"Failed to generate summary: {e}")
+            return f"Grimorium {grimorium_name} containing various magical tools."
 
     def sync_spells(self):
         """Synchronizes spells to the unified database, separated by collections."""
