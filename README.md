@@ -82,10 +82,13 @@ import asyncio
 from magetools import Grimorium
 
 async def main():
-    # Initialize (scans .magetools folder and indexes spells)
-    grimorium = Grimorium()
+    # Create the grimorium without auto-initializing
+    grimorium = Grimorium(auto_initialize=False)
     
     try:
+        # Asynchronously initialize to discover spells and generate summaries
+        await grimorium.initialize()
+
         # Get tools for your agent
         tools = await grimorium.get_tools()
         
