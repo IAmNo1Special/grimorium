@@ -4,7 +4,8 @@ Refactored to be a passive decorator system. No longer a singleton registry.
 """
 
 import logging
-from typing import Callable, TypeVar
+from collections.abc import Callable
+from typing import TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +25,10 @@ def register_spell(func: T) -> T:
     Returns:
         Callable: The original function, tagged.
     """
-    setattr(func, "_grimorium_spell", True)
+    func._grimorium_spell = True
     # Forward compatibility for configuration if needed later
     if not hasattr(func, "_grimorium_config"):
-        setattr(func, "_grimorium_config", {})
+        func._grimorium_config = {}
 
     return func
 

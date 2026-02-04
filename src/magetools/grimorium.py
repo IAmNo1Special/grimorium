@@ -3,12 +3,14 @@
 import asyncio
 import inspect
 import logging
-from typing import Any, List, Optional
+from pathlib import Path
+from typing import Any
 
 from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.tools import BaseTool, FunctionTool, ToolContext
 from google.adk.tools.base_toolset import BaseToolset
 
+from .config import MageToolsConfig, get_config
 from .prompts import grimorium_usage_guide
 from .spellsync import SpellSync, discover_and_load_spells
 
@@ -17,17 +19,26 @@ logger = logging.getLogger(__name__)
 
 class Grimorium(BaseToolset):
     """A magical grimoire toolset for discovering and managing spells.
-    This toolset provides two main tools:
-    1. magetools_search_spells: To find available spells.
-    2. magetools_execute_spell: To run a specific spell.
+
+    This toolset provides three main tools:
+    1. magetools_discover_grimoriums: To find relevant collections (Grimoriums).
+    2. magetools_discover_spells: To find spells within a Grimorium.
+    3. magetools_execute_spell: To run a specific spell.
+
+    Usage:
+        grimorium = Grimorium(root_path="/path/to/project")
+        await grimorium.initialize()  # Required before use
     """
 
     def __init__(
         self,
-        root_path: Optional[str] = None,
-        allowed_collections: Optional[List[str]] = None,
-        embedding_provider: Any = None,  # Use Any to avoid circular import or define Protocol
+        root_path: str | None = None,
+        allowed_collections: list[str] | None = None,
+        embedding_provider: Any = None,
         vector_store: Any = None,
+        config: MageToolsConfig | None = None,
+        strict_mode: bool = True,
+        auto_initialize: bool = True,
     ):
         """Initialize the Grimorium toolset.
 
@@ -36,18 +47,22 @@ class Grimorium(BaseToolset):
             allowed_collections: Optional list of collection names.
             embedding_provider: Optional EmbeddingProviderProtocol implementation.
             vector_store: Optional VectorStoreProtocol implementation.
+            config: Optional MageToolsConfig object.
+            strict_mode: If True, only load spells from folders with manifest.json.
+            auto_initialize: If True (default), run sync initialization in constructor
+                           for backwards compatibility. Set to False for async usage.
         """
         # Initialize the base toolset with a prefix to avoid naming collisions
         super().__init__(tool_name_prefix="magetools")
 
-        import inspect
-        from pathlib import Path
+        self.config = config or get_config(
+            root_path=Path(root_path) if root_path else None
+        )
+        path_obj = self.config.root_path
 
-        path_obj = None
-
-        if root_path:
-            path_obj = Path(root_path)
-        else:
+        # If root_path specifically provided, we trust it over auto-detection
+        # but if neither provided, we use the auto-detection from previous version as fallback for compatibility
+        if not root_path and not config:
             # Magic: Auto-detect the caller's frame to find where Grimorium is instantiated
             try:
                 # Stack[0] is here, Stack[1] is the caller
@@ -61,78 +76,168 @@ class Grimorium(BaseToolset):
             except Exception as e:
                 logger.warning(f"Could not auto-detect caller path: {e}")
 
-        # Fallback to CWD if magic failed and no path provided
-        if not path_obj:
-            path_obj = Path.cwd()
+            # Fallback to CWD if magic failed and no path provided
+            if not path_obj:
+                path_obj = Path.cwd()
+
+            # Update config with the auto-detected path
+            self.config.root_path = path_obj
 
         self.spell_sync = SpellSync(
-            root_path=path_obj,
+            root_path=self.config.root_path,
             allowed_collections=allowed_collections,
             embedding_provider=embedding_provider,
             vector_store=vector_store,
+            config=self.config,
         )
 
-        # Always discover and load spells from the computed root
+        self._strict_mode = strict_mode
+        self._initialized = False
+        self._allowed_collections = allowed_collections
+        self._embedding_provider = embedding_provider
+        self._vector_store = vector_store
+
+        # Create the tools that will be exposed to the agent
+        self._discover_grimoriums_tool = FunctionTool(func=self.discover_grimoriums)
+        self._discover_spells_tool = FunctionTool(func=self.discover_spells)
+        self._execute_spell_tool = FunctionTool(func=self.execute_spell)
+
+        # Auto-initialize for backwards compatibility
+        if auto_initialize:
+            try:
+                self._sync_initialize()
+            except Exception as e:
+                logger.error(f"AUTO-INIT FAILED: {e}")
+                logger.warning(
+                    "Grimorium is in an uninitialized state. "
+                    "Call 'await grimorium.initialize()' manually or check your configuration."
+                )
+                # Don't re-raise - allow object to exist in degraded state
+
+        logger.debug("Grimorium constructor completed.")
+
+    def _sync_initialize(self) -> None:
+        """Synchronous initialization (for backwards compatibility)."""
+        if self._initialized:
+            return
+
         logger.debug(
             f"Initializing Grimorium with root: {self.spell_sync.MAGETOOLS_ROOT}"
         )
         discover_and_load_spells(
-            self.spell_sync.MAGETOOLS_ROOT, registry=self.spell_sync.registry
+            self.spell_sync.MAGETOOLS_ROOT,
+            registry=self.spell_sync.registry,
+            strict_mode=self._strict_mode,
         )
         self.spell_sync.sync_spells()
-        # Create the tools that will be exposed to the agent
-        self._search_spells_tool = FunctionTool(func=self.search_spells)
-        self._execute_spell_tool = FunctionTool(func=self.execute_spell)
-        logger.debug("Grimorium initialized successfully.")
+        self._initialized = True
+        logger.debug("Grimorium initialized successfully (sync).")
+
+    @property
+    def registry(self) -> dict[str, Any]:
+        """Get the registry of discovered spells."""
+        return self.spell_sync.registry
+
+    async def initialize(self) -> None:
+        """Async initialization for non-blocking setup.
+
+        Call this after construction when using auto_initialize=False:
+
+            grimorium = Grimorium(auto_initialize=False)
+            await grimorium.initialize()
+
+        This method handles:
+        - Spell discovery from filesystem
+        - Database synchronization
+        - LLM-generated metadata (async)
+        """
+        if self._initialized:
+            return
+
+        logger.debug(
+            f"Initializing Grimorium (async) with root: {self.spell_sync.MAGETOOLS_ROOT}"
+        )
+        discover_and_load_spells(
+            self.spell_sync.MAGETOOLS_ROOT,
+            registry=self.spell_sync.registry,
+            strict_mode=self._strict_mode,
+        )
+        self.spell_sync.sync_spells()
+        await self.spell_sync.sync_grimoriums_metadata_async()
+        self._initialized = True
+        logger.debug("Grimorium initialized successfully (async).")
+
+    def _check_initialized(self) -> None:
+        """Raise error if not initialized."""
+        if not self._initialized:
+            raise RuntimeError(
+                "Grimorium not initialized. Call 'await grimorium.initialize()' first, "
+                "or use auto_initialize=True (default) in constructor."
+            )
 
     @property
     def usage_guide(self) -> str:
         """Returns the usage guide instructions for using this toolset."""
         return grimorium_usage_guide
 
-    def search_spells(self, query: str) -> dict[str, Any]:
-        """Search for spells that match a given description.
+    def discover_grimoriums(self, query: str) -> dict[str, Any]:
+        """Find relevant Grimoriums (Collections) based on a high-level goal.
 
         Args:
-            query: A description of the spell or functionality you are looking for.
-                   Example: "calculate factorial" or "send email"
-        Returns:
-            A dictionary containing the search results and metadata of found spells.
+            query: High-level description of what you want to achieve.
+                   Example: "process data", "manage files", "handle audio"
         """
-        logger.debug(f"Grimorium searching for: {query}...")
-        result = self.spell_sync.find_matching_spells(query)
+        self._check_initialized()
+        results = self.spell_sync.find_relevant_grimoriums(query)
+        if not results:
+            return {"status": "not_found", "message": "No relevant Grimoriums found."}
 
-        if result:
-            spell_names = result
-            detailed_spells = {}
+        # Simplify output for the agent
+        simple_results = []
+        for r in results:
+            simple_results.append(
+                {
+                    "id": r["grimorium_id"],
+                    "description": r["description"][:200] + "...",  # Truncate
+                }
+            )
 
-            for name in spell_names:
-                try:
-                    func = self.spell_sync.registry[name]
-                    sig = inspect.signature(func)
-                    # Get docstring but clean it up a bit (first line or summary)
-                    doc = inspect.getdoc(func) or "No description available."
+        return {
+            "status": "success",
+            "grimoriums": simple_results,
+            "next_step": "Use 'magetools_discover_spells(grimorium_id, query)' to find specific tools.",
+        }
 
-                    detailed_spells[name] = {
-                        "description": doc,
-                        "signature": str(sig),
-                    }
-                except Exception as e:
-                    logger.warning(f"Could not inspect spell {name}: {e}")
-                    detailed_spells[name] = {"error": "Details unavailable"}
+    def discover_spells(self, grimorium_id: str, query: str) -> dict[str, Any]:
+        """Find specific spells (tools) within a selected Grimorium.
 
-            logger.debug(f"Found spells: {spell_names}")
+        Args:
+            grimorium_id: The ID of the Grimorium to search (found via discover_grimoriums).
+            query: Specific action you want to perform.
+        """
+        self._check_initialized()
+        spell_ids = self.spell_sync.find_spells_within_grimorium(grimorium_id, query)
+
+        if not spell_ids:
             return {
-                "status": "success",
-                "message": f"Found {len(spell_names)} potential spells.",
-                "spells": detailed_spells,
-                "hint": "Use 'magetools_execute_spell' with the exact name of one of these spells and the required arguments from the signature.",
+                "status": "not_found",
+                "message": f"No spells found in '{grimorium_id}' matching '{query}'.",
             }
 
-        logger.debug("No spells found matching that description.")
+        detailed_spells = {}
+        for name in spell_ids:
+            try:
+                func = self.spell_sync.registry[name]
+                sig = str(inspect.signature(func))
+                doc = inspect.getdoc(func) or "No description."
+                detailed_spells[name] = {"signature": sig, "description": doc}
+            except Exception:
+                continue
+
         return {
-            "status": "not_found",
-            "message": "No spells found matching that description. Try a different query.",
+            "status": "success",
+            "grimorium": grimorium_id,
+            "spells": detailed_spells,
         }
 
     async def execute_spell(
@@ -145,6 +250,7 @@ class Grimorium(BaseToolset):
         Returns:
             The result of the spell execution.
         """
+        self._check_initialized()
         logger.info(
             f"Grimorium executing spell: {spell_name} with args: {arguments}..."
         )
@@ -172,9 +278,11 @@ class Grimorium(BaseToolset):
 
             # Robust injection of context by Type and Name
             for name, param in sig.parameters.items():
-                if param.annotation == ToolContext:
-                    call_args[name] = tool_context
-                elif name == "tool_context" and name not in call_args:
+                if (
+                    param.annotation == ToolContext
+                    or name == "tool_context"
+                    and name not in call_args
+                ):
                     call_args[name] = tool_context
 
             # Execute the spell with the prepared arguments
@@ -192,12 +300,29 @@ class Grimorium(BaseToolset):
                 "status": "error",
                 "message": f"Failed to call spell. Please check arguments. details: {str(te)}",
             }
-        except Exception as e:
-            logger.error(f"Error executing spell {spell_name}: {e}")
-            return {"status": "error", "message": f"Execution failed: {str(e)}"}
+        except BaseException as e:
+            # Catch BaseException to protect the agent from misbehaving tools
+            # This includes KeyboardInterrupt, SystemExit, etc.
+            logger.error(
+                f"Critical error executing spell {spell_name}: {type(e).__name__}: {e}"
+            )
+            return {
+                "status": "error",
+                "message": f"Execution failed: {type(e).__name__}: {str(e)}",
+            }
 
     async def get_tools(
-        self, readonly_context: Optional[ReadonlyContext] = None
-    ) -> List[BaseTool]:
+        self, readonly_context: ReadonlyContext | None = None
+    ) -> list[BaseTool]:
         """Return the list of tools provided by this toolset."""
-        return [self._search_spells_tool, self._execute_spell_tool]
+        return [
+            self._discover_grimoriums_tool,
+            self._discover_spells_tool,
+            self._execute_spell_tool,
+        ]
+
+    async def close(self) -> None:
+        """Cleanup resources."""
+        logger.info("Closing Grimorium toolset...")
+        await self.spell_sync.close()
+        await super().close()

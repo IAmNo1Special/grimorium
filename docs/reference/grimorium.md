@@ -1,0 +1,3 @@
+# Grimorium
+
+::: magetools.grimorium.Grimorium

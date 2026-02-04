@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 from google.adk.agents import LlmAgent
@@ -18,31 +19,41 @@ from google.adk.sessions import InMemorySessionService
 
 from magetools import Grimorium
 
-from .config import APP_NAME, SESSION_ID, USER_ID
-
-# from grimorium.utils import call_agent_async
-from .utils import call_agent_async
+try:
+    from .config import APP_NAME, SESSION_ID, USER_ID
+    from .utils import call_agent_async
+except ImportError:
+    # Support running as a script (uv run example/agent.py)
+    from config import APP_NAME, SESSION_ID, USER_ID
+    from utils import call_agent_async
 
 # Load environment variables
 load_dotenv()
 
-logger = logging.getLogger(__name__)
+# Force clean logging to stderr
+handler = logging.StreamHandler()
+handler.setFormatter(
+    logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+)
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+logger.addHandler(handler)
 
-# Configure root logger to see grimorium logs
-# basicConfig does nothing if logging is already configured (which ADK does)
-# So we must forcefully set the level on the specific logger.
 logging.getLogger("magetools").setLevel(logging.DEBUG)
 
+# Get the example directory (where this script lives)
+EXAMPLE_DIR = Path(__file__).parent.resolve()
 
-# 4. Instantiate the toolset
-grimorium = Grimorium()
+# Instantiate the toolset with explicit root path
+# This ensures magetools.yaml and .magetools are loaded from the example dir
+grimorium = Grimorium(root_path=str(EXAMPLE_DIR), auto_initialize=False)
 
 # Initialize the root agent
 root_agent = LlmAgent(
-    name="my_agent",
-    model="gemini-3-flash-preview",
-    description="Agent that help the user.",
-    instruction=f"""You are an advanced AI assistant.
+    name="magetools_agent",
+    model="gemini-2.5-flash",
+    description="Agent that uses magetools to discover and execute spells.",
+    instruction=f"""You are an advanced AI assistant with access to magetools.
     Be helpful, concise, and focus on solving the user's request effectively.
     {grimorium.usage_guide}""",
     tools=[grimorium],
@@ -51,6 +62,11 @@ root_agent = LlmAgent(
 
 async def run_grimorium_agent() -> None:
     """Run the root agent with interactive command-line interface."""
+    # Ensure Grimorium is initialized (async pattern)
+    logger.info("Initializing Grimorium...")
+    await grimorium.initialize()
+    logger.info("Grimorium initialized!")
+
     runner = None
     try:
         # Initialize adk services
@@ -117,6 +133,10 @@ async def run_grimorium_agent() -> None:
                 )
     except Exception as e:
         logger.error(f"An unexpected error occurred: {e}")
+    finally:
+        # Clean up resources
+        await grimorium.close()
+        logger.info("Grimorium closed.")
 
 
 if __name__ == "__main__":

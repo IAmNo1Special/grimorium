@@ -1,0 +1,3 @@
+# Configuration
+
+::: magetools.config.MageToolsConfig
