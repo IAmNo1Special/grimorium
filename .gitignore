@@ -14,3 +14,7 @@ wheels/
 
 # TODO's
 TODO/
+
+.chroma_db/
+
+.adk/

@@ -10,46 +10,43 @@ import asyncio
 import logging
 import sys
 
-import tools
-from config import APP_NAME, SESSION_ID, USER_ID
 from dotenv import load_dotenv
 from google.adk.agents import LlmAgent
 from google.adk.memory import InMemoryMemoryService
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 
-from grimorium import Grimorium
-from grimorium.utils import call_agent_async
+from magetools import Grimorium
+
+from .config import APP_NAME, SESSION_ID, USER_ID
+
+# from grimorium.utils import call_agent_async
+from .utils import call_agent_async
 
 # Load environment variables
 load_dotenv()
 
-
-class _NoToolNoise(logging.Filter):
-    """Filter out specific warning messages from the logs."""
-
-    def filter(self, record: logging.LogRecord) -> bool:
-        return (
-            "Warning: there are non-text parts in the response:"
-            not in record.getMessage()
-        )
-
-
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-logging.getLogger("google_genai.types").addFilter(_NoToolNoise())
+
+# Configure root logger to see grimorium logs
+# basicConfig does nothing if logging is already configured (which ADK does)
+# So we must forcefully set the level on the specific logger.
+logging.getLogger("magetools").setLevel(logging.DEBUG)
+
+
+# 4. Instantiate the toolset
+grimorium = Grimorium()
 
 # Initialize the root agent
 root_agent = LlmAgent(
     name="my_agent",
-    model="gemini-2.5-flash",
+    model="gemini-3-flash-preview",
     description="Agent that help the user.",
-    instruction="""You are an advanced AI assistant.
-    Be helpful, concise, and focus on solving the user's request effectively.""",
+    instruction=f"""You are an advanced AI assistant.
+    Be helpful, concise, and focus on solving the user's request effectively.
+    {grimorium.usage_guide}""",
+    tools=[grimorium],
 )
-
-# Initialize Grimorium with the root agent
-Grimorium(connected_agent=root_agent)
 
 
 async def run_grimorium_agent() -> None:
@@ -115,7 +112,9 @@ async def run_grimorium_agent() -> None:
                     show_final_responses=True,
                 )
             except Exception as e:
-                logger.error(f"Error in 'call_agent_async' call in 'run_root_agent': {e}")
+                logger.error(
+                    f"Error in 'call_agent_async' call in 'run_root_agent': {e}"
+                )
     except Exception as e:
         logger.error(f"An unexpected error occurred: {e}")
 
