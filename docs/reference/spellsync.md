@@ -1,0 +1,3 @@
+# SpellSync
+
+::: magetools.spellsync.SpellSync

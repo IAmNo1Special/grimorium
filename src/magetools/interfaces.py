@@ -1,6 +1,6 @@
 """Interfaces and Protocols for Grimorium dependency abstraction."""
 
-from typing import Any, List, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 
 @runtime_checkable
@@ -15,6 +15,10 @@ class EmbeddingProviderProtocol(Protocol):
         """Generates text content."""
         ...
 
+    async def close(self) -> None:
+        """Cleanup resources."""
+        ...
+
 
 @runtime_checkable
 class VectorStoreProtocol(Protocol):
@@ -24,12 +28,16 @@ class VectorStoreProtocol(Protocol):
         """Retrieve a collection, using the provide embedding function."""
         ...
 
-    def list_collections(self) -> List[Any]:
+    def list_collections(self) -> list[Any]:
         """List all available collections."""
         ...
 
     def get_or_create_collection(self, name: str, embedding_function: Any) -> Any:
         """Get or create."""
+        ...
+
+    async def close(self) -> None:
+        """Cleanup resources."""
         ...
 
     # Note: We are currently leaking ChromaDB's Collection interface slightly

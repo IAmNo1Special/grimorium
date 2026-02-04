@@ -1,23 +1,19 @@
 import ast
+import asyncio
 import hashlib
 import importlib.util
 import inspect
+import json
 import logging
 import sys
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any
 
 import chromadb
-from dotenv import load_dotenv
 
-from .adapters import ChromaVectorStore, GoogleGenAIProvider
-from .constants import (
-    COLLECTION_ATTR_NAME,
-    DB_FOLDER_NAME,
-    GRIMORIUMS_INDEX_NAME,
-    MAGETOOLS_DIR_NAME,
-    STANDARD_COLLECTION_NAME,
-)
+from .adapters import ChromaVectorStore
+from .config import MageToolsConfig, get_config
+from .constants import COLLECTION_ATTR_NAME, GRIMORIUMS_INDEX_NAME
 from .interfaces import EmbeddingProviderProtocol, VectorStoreProtocol
 
 # from .spell_registry import spell_registry  <-- Removed global dependency
@@ -32,46 +28,33 @@ class SpellSync:
     containing its own ChromaDB database.
     """
 
-    # Constants
-    MAGETOOLS_ROOT = Path(MAGETOOLS_DIR_NAME)
-    DB_FOLDER_NAME = DB_FOLDER_NAME
-    STANDARD_COLLECTION_NAME = STANDARD_COLLECTION_NAME
-
     def __init__(
         self,
-        root_path: Optional[Path] = None,
-        allowed_collections: Optional[List[str]] = None,
-        embedding_provider: Optional[EmbeddingProviderProtocol] = None,
-        vector_store: Optional[VectorStoreProtocol] = None,
+        root_path: Path | None = None,
+        allowed_collections: list[str] | None = None,
+        embedding_provider: EmbeddingProviderProtocol | None = None,
+        vector_store: VectorStoreProtocol | None = None,
+        config: MageToolsConfig | None = None,
     ):
         """Initialize the SpellSync with a single unified database.
 
         Args:
-            root_path: Optional path to the project root containing .grimorium.
-                      If None, defaults to CWD.
+            root_path: Optional path to the project root containing .magetools.
+                      If None, defaults to CWD or config.root_path.
             allowed_collections: Optional list of collection names to restrict access to.
                                If None, all collections are accessible.
+            config: Optional MageToolsConfig object.
         """
-        load_dotenv()
+        self.config = config or get_config(root_path=root_path)
         self.top_spells = 5
         # Distance threshold for filtering (Lower is better for distance metrics)
-        # 0.0 = exact match, ~0.3-0.4 = Semantic match, >1.0 = Unrelated
-        self.distance_threshold = 0.4
         self.distance_threshold = 0.4
         self.allowed_collections = allowed_collections
         self.registry = {}
 
-        self.allowed_collections = allowed_collections
-        self.registry = {}
-
-        # Determine root path
-        if root_path:
-            self.MAGETOOLS_ROOT = root_path / MAGETOOLS_DIR_NAME
-        else:
-            self.MAGETOOLS_ROOT = Path(MAGETOOLS_DIR_NAME)
-
-        # Unified Database Path: .magetools/.chroma_db
-        db_path = self.MAGETOOLS_ROOT / self.DB_FOLDER_NAME
+        # Use root from config
+        self.MAGETOOLS_ROOT = self.config.magetools_root
+        db_path = self.config.db_path
 
         # Ensure root grimorium folder exists
         if not self.MAGETOOLS_ROOT.exists():
@@ -79,7 +62,9 @@ class SpellSync:
 
         # Dependency Injection / Defaults
         if embedding_provider is None:
-            self.embedding_provider = GoogleGenAIProvider()
+            from .adapters import get_default_provider
+
+            self.embedding_provider = get_default_provider(config=self.config)
         else:
             self.embedding_provider = embedding_provider
 
@@ -182,10 +167,20 @@ class SpellSync:
             match for match in sorted_matches if match[1] <= self.distance_threshold
         ]
 
+        # Near-miss reporting for debug mode
+        if self.config.debug:
+            near_misses = [
+                match
+                for match in sorted_matches
+                if self.distance_threshold < match[1] <= self.distance_threshold + 0.2
+            ]
+            if near_misses:
+                logger.info(f"Near-miss spells (just above threshold): {near_misses}")
+
         # Return just the spell IDs (limited by top_spells)
         return [match[0] for match in filtered_matches][: self.top_spells]
 
-    def find_relevant_grimoriums(self, query: str) -> List[dict[str, Any]]:
+    def find_relevant_grimoriums(self, query: str) -> list[dict[str, Any]]:
         """Find Grimoriums (Collections) that match the query."""
         if not query:
             return []
@@ -224,7 +219,7 @@ class SpellSync:
             logger.error(f"Failed to search grimoriums: {e}")
             return []
 
-    def find_spells_within_grimorium(self, grimorium_id: str, query: str) -> List[str]:
+    def find_spells_within_grimorium(self, grimorium_id: str, query: str) -> list[str]:
         """Find spells within a specific Grimorium."""
         logger.info(f"Searching for '{query}' in Grimorium '{grimorium_id}'...")
 
@@ -303,7 +298,7 @@ class SpellSync:
             for d in self.MAGETOOLS_ROOT.iterdir()
             if d.is_dir()
             and not d.name.startswith((".", "_"))
-            and d.name != self.DB_FOLDER_NAME
+            and d.name != self.config.db_folder_name
         ]
 
         ids = []
@@ -312,17 +307,35 @@ class SpellSync:
 
         for folder in folders:
             grimorium_id = folder.name
+            current_hash = self._compute_grimorium_hash(folder)
 
             # Check for existing summary file
             summary_path = folder / "grimorium_summary.md"
             description = ""
 
-            if summary_path.exists():
+            # Check if we have a stored hash in the index
+            stored_hash = ""
+            existing_results = master_index.get(ids=[grimorium_id])
+            if existing_results and existing_results["metadatas"]:
+                stored_hash = existing_results["metadatas"][0].get("hash", "")
+
+            # If hash changed, we consider it "missing" to trigger re-generation
+            is_stale = stored_hash and stored_hash != current_hash
+
+            if summary_path.exists() and not is_stale:
                 description = summary_path.read_text(encoding="utf-8")
 
-            # If missing or empty, generate it!
-            if not description:
-                logger.info(f"Auto-generating summary for Grimorium: {grimorium_id}")
+            # If missing, empty, or stale, generate it!
+            if not description or is_stale:
+                if is_stale:
+                    logger.info(
+                        f"Summary for {grimorium_id} is stale. Re-generating..."
+                    )
+                else:
+                    logger.info(
+                        f"Auto-generating summary for Grimorium: {grimorium_id}"
+                    )
+
                 spell_docs = []
                 # Gather docstrings from all spells in this folder
                 for py_file in folder.rglob("*.py"):
@@ -331,10 +344,23 @@ class SpellSync:
                     try:
                         source = py_file.read_text(encoding="utf-8")
                         module = ast.parse(source)
-                        doc = ast.get_docstring(module)
-                        if doc:
-                            spell_docs.append(f"Spell in {py_file.stem}: {doc}")
-                    except Exception:
+                        # Extract module docstring
+                        module_doc = ast.get_docstring(module)
+                        if module_doc:
+                            spell_docs.append(f"Module {py_file.stem}: {module_doc}")
+
+                        # Extract function and class docstrings
+                        for node in ast.walk(module):
+                            if isinstance(
+                                node,
+                                (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef),
+                            ):
+                                doc = ast.get_docstring(node)
+                                if doc:
+                                    name = node.name
+                                    spell_docs.append(f"Spell {name}: {doc}")
+                    except Exception as e:
+                        logger.warning(f"Failed to parse {py_file} for summary: {e}")
                         continue
 
                 if spell_docs:
@@ -356,6 +382,7 @@ class SpellSync:
                 {
                     "grimorium_id": grimorium_id,
                     "spell_count": len(list(folder.glob("*.py"))),  # Rough count
+                    "hash": current_hash,
                 }
             )
 
@@ -363,18 +390,137 @@ class SpellSync:
             master_index.upsert(ids=ids, documents=documents, metadatas=metadatas)
             logger.info(f"Updated metadata for {len(ids)} Grimoriums.")
 
+    async def sync_grimoriums_metadata_async(self, concurrency: int = 5):
+        """Async version of sync_grimoriums_metadata with parallel LLM calls."""
+        logger.info("Syncing Grimorium metadata (async)...")
+
+        master_index = self.vector_store.get_or_create_collection(
+            name=GRIMORIUMS_INDEX_NAME, embedding_function=self.embedding_function
+        )
+
+        folders = [
+            d
+            for d in self.MAGETOOLS_ROOT.iterdir()
+            if d.is_dir()
+            and not d.name.startswith((".", "_"))
+            and d.name != self.config.db_folder_name
+        ]
+
+        semaphore = asyncio.Semaphore(concurrency)
+
+        async def process_folder(folder: Path) -> tuple[str, str, dict] | None:
+            async with semaphore:
+                grimorium_id = folder.name
+                current_hash = self._compute_grimorium_hash(folder)
+                summary_path = folder / "grimorium_summary.md"
+                description = ""
+
+                # Check stored hash
+                stored_hash = ""
+                existing_results = master_index.get(ids=[grimorium_id])
+                if existing_results and existing_results["metadatas"]:
+                    stored_hash = existing_results["metadatas"][0].get("hash", "")
+
+                is_stale = stored_hash and stored_hash != current_hash
+
+                if summary_path.exists() and not is_stale:
+                    description = summary_path.read_text(encoding="utf-8")
+
+                if not description or is_stale:
+                    logger.info(f"Generating summary for {grimorium_id}...")
+                    spell_docs = self._extract_spell_docs(folder)
+                    if spell_docs:
+                        description = await asyncio.to_thread(
+                            self._generate_grimorium_summary, grimorium_id, spell_docs
+                        )
+                        try:
+                            summary_path.write_text(description, encoding="utf-8")
+                        except Exception as e:
+                            logger.error(
+                                f"Failed to write summary for {grimorium_id}: {e}"
+                            )
+
+                if not description:
+                    description = f"Collection of spells in {grimorium_id}"
+
+                return (
+                    grimorium_id,
+                    description,
+                    {
+                        "grimorium_id": grimorium_id,
+                        "spell_count": len(list(folder.glob("*.py"))),
+                        "hash": current_hash,
+                    },
+                )
+
+        results = await asyncio.gather(*[process_folder(f) for f in folders])
+
+        ids, documents, metadatas = [], [], []
+        for result in results:
+            if result:
+                ids.append(result[0])
+                documents.append(result[1])
+                metadatas.append(result[2])
+
+        if ids:
+            master_index.upsert(ids=ids, documents=documents, metadatas=metadatas)
+            logger.info(f"Updated metadata for {len(ids)} Grimoriums (async).")
+
+    def _extract_spell_docs(self, folder: Path) -> list[str]:
+        """Extract docstrings from python files in a folder."""
+        spell_docs = []
+        for py_file in folder.rglob("*.py"):
+            if py_file.name.startswith((".", "_")):
+                continue
+            try:
+                source = py_file.read_text(encoding="utf-8")
+                module = ast.parse(source)
+                module_doc = ast.get_docstring(module)
+                if module_doc:
+                    spell_docs.append(f"Module {py_file.stem}: {module_doc}")
+                for node in ast.walk(module):
+                    if isinstance(
+                        node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+                    ):
+                        doc = ast.get_docstring(node)
+                        if doc:
+                            spell_docs.append(f"Spell {node.name}: {doc}")
+            except Exception as e:
+                logger.warning(f"Failed to parse {py_file} for summary: {e}")
+        return spell_docs
+
     def _generate_grimorium_summary(
-        self, grimorium_name: str, spell_docs: List[str]
+        self, grimorium_name: str, spell_docs: list[str]
     ) -> str:
         """Uses the AI Provider to generate a high-quality summary of the Grimorium."""
         prompt = f"""
-You are the Librarian of the Arcane. 
-Analyze the following list of 'Spells' (tools/functions) contained within the '{grimorium_name}' Grimorium.
-Generate a concise but comprehensive summary of what this Grimorium is capable of. 
-Focus on the collective capabilities and the types of problems it solves. 
-Do not list every single spell, but highlight key themes.
+Analyze the provided list of tools/functions in the '{grimorium_name}' collection.
+Task: You are an expert in information extraction and technical documentation analysis. 
+Generate a professional, high-density technical summary that distills collection capabilities while excluding operational details.
 
-Spells:
+Requirements:
+1. Identify the primary functional domains (e.g., File I/O, Authentication, Data Processing).
+2. If the tools are a "ball of spells" (disjointed/random), categorize them into logical thematic clusters.
+3. Use a neutral, technical tone. Avoid all fantasy, magical, or flowery language. 
+4. Focus on what an agent can *do* with these tools.
+5. Do NOT include installation, configuration, or unrelated operational details.
+
+Follow this exact Markdown format:
+
+# Domains
+[Comma-separated list of technical areas covered]
+
+# Summary
+[2-3 sentence technical overview of the collection's purpose]
+
+# Major Capabilities
+- **[Theme 1]**: [Brief description of what tools in this theme achieve]
+- **[Theme 2]**: [Brief description of what tools in this theme achieve]
+
+# Key Search Keywords
+[List 5-10 keywords an agent might use to find this collection, these can be tool specific or general domain keywords]
+
+Tools/Functions:
 {chr(10).join(spell_docs)[:8000]} 
 
 Summary:
@@ -384,6 +530,30 @@ Summary:
         except Exception as e:
             logger.error(f"Failed to generate summary: {e}")
             return f"Grimorium {grimorium_name} containing various magical tools."
+
+    def _compute_grimorium_hash(self, folder_path: Path) -> str:
+        """Computes a hash of all python files in the folder to detect changes."""
+        hasher = hashlib.md5()
+        # Sort files to ensure deterministic hash
+        py_files = sorted(list(folder_path.rglob("*.py")))
+        for py_file in py_files:
+            if py_file.name.startswith((".", "_")):
+                continue
+            try:
+                # We hash the content to detect functional changes
+                content = py_file.read_bytes()
+                hasher.update(content)
+            except Exception:
+                continue
+        return hasher.hexdigest()
+
+    async def close(self) -> None:
+        """Cleanup synchronizer resources."""
+        logger.debug("Closing SpellSync...")
+        if hasattr(self.vector_store, "close"):
+            await self.vector_store.close()
+        if hasattr(self.embedding_provider, "close"):
+            await self.embedding_provider.close()
 
     def sync_spells(self):
         """Synchronizes spells to the unified database, separated by collections."""
@@ -472,32 +642,67 @@ Summary:
 
 
 def discover_and_load_spells(
-    root_path: Optional[Path] = None, registry: Optional[dict[str, Any]] = None
+    root_path: Path | None = None,
+    registry: dict[str, Any] | None = None,
+    strict_mode: bool = True,
 ):
-    """Dynamically discover and load spells from the .grimorium directory."""
+    """Dynamically discover and load spells from the .magetools directory.
+
+    Args:
+        root_path: Optional path to search for spells.
+        registry: Optional dict to populate with discovered spells.
+        strict_mode: If True (default), only load spells from folders that have
+                    a manifest.json file. This is a security feature to prevent
+                    accidental execution of arbitrary code.
+    """
 
     if root_path:
         search_path = root_path
     else:
-        # Fallback to CWD-based default
-        search_path = SpellSync.MAGETOOLS_ROOT.resolve()
+        # Fallback to CWD-based default using config
+        config = get_config()
+        search_path = config.magetools_root
 
-    logger.info(f"Scanning for spells in strict mode: {search_path}")
+    logger.info(f"Scanning for spells (strict_mode={strict_mode}): {search_path}")
 
     if not search_path.exists():
         logger.warning(
-            f"Grimorium directory not found at {search_path}. "
-            "Please create a '.grimorium' folder to store your spells."
+            f"Magetools directory not found at {search_path}. "
+            "Please create a '.magetools' folder to store your spells."
         )
         return
 
-    # Walk through all subdirectories in .grimorium
-    # Each subdirectory is a collection
+    # Walk through all subdirectories in .magetools
+    # Each subdirectory is a collection (Grimorium)
     for collection_dir in search_path.iterdir():
         if not collection_dir.is_dir() or collection_dir.name.startswith((".", "_")):
             continue
 
         collection_name = collection_dir.name
+
+        # Load manifest for this collection (if exists)
+        manifest = _load_manifest(collection_dir)
+
+        # STRICT MODE: Require manifest.json for security
+        if strict_mode and not manifest:
+            py_files = list(collection_dir.rglob("*.py"))
+            public_py_files = [f for f in py_files if not f.name.startswith((".", "_"))]
+            if public_py_files:
+                logger.warning(
+                    f"Skipping collection '{collection_name}': No manifest.json found (strict_mode=True). "
+                    f"Found {len(public_py_files)} Python file(s) that will NOT be loaded. "
+                    f"Add a manifest.json to enable this collection."
+                )
+            continue
+
+        # Check if collection is disabled
+        if manifest and not manifest.get("enabled", True):
+            logger.info(f"Skipping disabled collection: {collection_name}")
+            continue
+
+        if manifest:
+            logger.info(f"Loaded manifest for collection: {collection_name}")
+
         logger.info(f"Found collection directory: {collection_name}")
 
         for py_file in collection_dir.rglob("*.py"):
@@ -512,7 +717,7 @@ def discover_and_load_spells(
 
             try:
                 # Pre-check syntax to avoid crashing on import
-                with open(py_file, "r", encoding="utf-8") as f:
+                with open(py_file, encoding="utf-8") as f:
                     source = f.read()
                 ast.parse(source)
             except Exception as e:
@@ -533,11 +738,17 @@ def discover_and_load_spells(
                     count = 0
                     for name, obj in inspect.getmembers(module):
                         if getattr(obj, "_grimorium_spell", False) is True:
-                            # It's a spell!
-                            # Register to the provided dict or just log it?
-                            # We need to construct the registry key
-                            # Key = {collection}.{func_name}
-                            key = f"{collection_name}.{obj.__name__}"
+                            spell_name = obj.__name__
+
+                            # Check manifest whitelist/blacklist
+                            if not _is_spell_allowed(spell_name, manifest):
+                                logger.debug(
+                                    f"Spell '{spell_name}' blocked by manifest in {collection_name}"
+                                )
+                                continue
+
+                            # Register the spell
+                            key = f"{collection_name}.{spell_name}"
 
                             if registry is not None:
                                 registry[key] = obj
@@ -549,3 +760,68 @@ def discover_and_load_spells(
                         )
             except Exception as e:
                 logger.warning(f"Warning: Failed to load spells from {py_file}: {e}")
+
+
+def _load_manifest(collection_dir: Path) -> dict | None:
+    """Load manifest.json from a collection directory.
+
+    The manifest can contain:
+    - "whitelist": List of spell names to explicitly allow (if set, only these are loaded)
+    - "blacklist": List of spell names to block (applied after whitelist)
+    - "enabled": Boolean to enable/disable entire collection (default: true)
+    - "version": Manifest schema version (for future compatibility)
+
+    Returns:
+        Parsed manifest dict or None if not found.
+    """
+    manifest_path = collection_dir / "manifest.json"
+    if not manifest_path.exists():
+        return None
+
+    try:
+        with open(manifest_path, encoding="utf-8") as f:
+            manifest = json.load(f)
+
+        # Validate basic schema
+        if not isinstance(manifest, dict):
+            logger.warning(f"Invalid manifest in {collection_dir}: expected dict")
+            return None
+
+        return manifest
+    except json.JSONDecodeError as e:
+        logger.warning(f"Invalid JSON in manifest at {manifest_path}: {e}")
+        return None
+    except Exception as e:
+        logger.warning(f"Failed to load manifest from {manifest_path}: {e}")
+        return None
+
+
+def _is_spell_allowed(spell_name: str, manifest: dict | None) -> bool:
+    """Check if a spell is allowed by the manifest rules.
+
+    Rules:
+    1. If no manifest, all spells allowed
+    2. If manifest.enabled is False, no spells allowed
+    3. If whitelist exists, only whitelisted spells allowed
+    4. If blacklist exists, blacklisted spells blocked
+    """
+    if manifest is None:
+        return True
+
+    # Check if collection is enabled
+    if not manifest.get("enabled", True):
+        return False
+
+    whitelist = manifest.get("whitelist")
+    blacklist = manifest.get("blacklist", [])
+
+    # Whitelist takes precedence
+    if whitelist is not None:
+        if spell_name not in whitelist:
+            return False
+
+    # Check blacklist
+    if spell_name in blacklist:
+        return False
+
+    return True

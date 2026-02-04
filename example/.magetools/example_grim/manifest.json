@@ -1,0 +1,10 @@
+{
+  "version": "1.0",
+  "enabled": true,
+  "description": "Example collection manifest - only exposes weather and location spells",
+  "whitelist": [
+    "get_user_location",
+    "weather_forecast"
+  ],
+  "blacklist": []
+}

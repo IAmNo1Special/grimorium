@@ -4,23 +4,28 @@ grimorium_usage_guide = """
 
 ## How to use Magic (Spells)
 
-You have access to a Grimorium Toolset that lets you find and run python scripts ("spells").
-DO NOT assume you have tools for every task. You must find them first.
+You have access to a Grimorium Toolset, a vast library of tools ("spells") organized into collections ("Grimoriums").
+You CANNOT search all spells at once. You must follow the Discovery Loop.
 
-### Workflow
+### The Discovery Loop
 
-1.  **SEARCH**: If you need to do something (e.g. "math", "check weather"), use the `magetools_search_spells` tool.
-    *   Query: "calculate factorial"
-2.  **ANALYZE**: Read the search results. It will give you a list of spell names.
-3.  **EXECUTE**: Use the `magetools_execute_spell` tool to run the best match.
-    *   Arguments: Pass the arguments required by the spell as a dictionary.
+1.  **FIND A GRIMORIUM**: Search for a collection relevant to your high-level goal.
+    *   Tool: `magetools_discover_grimoriums(query="...")`
+    *   *Example: "I need to parse a CSV file" -> query="data processing"*
 
-### Example
+2.  **FIND A SPELL**: Once you have a `grimorium_id` (e.g., "data_tools"), search inside it for the specific tool.
+    *   Tool: `magetools_discover_spells(grimorium_id="...", query="...")`
+    *   *Example: "read csv"*
 
-User: "What is 5! ?"
-You: 
-1. Call `magetools_search_spells(query="factorial")`
-2. Tool Output: `{"spells": ["math_factorial"]}`
-3. You Call `magetools_execute_spell(spell_name="math_factorial", arguments={"n": 5})`
+3.  **EXECUTE**: detailed_spells will give you the function signature. Run it.
+    *   Tool: `magetools_execute_spell(spell_name="...", arguments={...})`
+
+### Example Context
+
+User: "Convert this text to speech."
+You:
+1. Call `magetools_discover_grimoriums(query="audio gen")` -> Returns `[{"id": "audio_ops", "desc": "..."}]`
+2. Call `magetools_discover_spells(grimorium_id="audio_ops", query="text to speech")` -> Returns `{"tts_speak": "def tts_speak(text)..."}`
+3. Call `magetools_execute_spell(spell_name="tts_speak", arguments={"text": "Hello"})`
 
 """

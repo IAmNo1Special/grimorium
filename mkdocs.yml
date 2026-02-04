@@ -1,0 +1,77 @@
+site_name: Magetools
+site_description: Dynamic tool discovery and management for AI agents using the Active Discovery pattern.
+site_url: https://github.com/IAmNo1Special/magetools
+repo_url: https://github.com/IAmNo1Special/magetools
+repo_name: IAmNo1Special/magetools
+
+theme:
+  name: material
+  features:
+    - content.code.copy
+    - content.tooltips
+    - navigation.expand
+    - navigation.sections
+    - navigation.tabs
+    - navigation.top
+    - navigation.instant
+    - search.suggest
+    - search.highlight
+    - toc.follow
+  palette:
+    # Default to Dark Mode (Super Dark/Slate)
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple # Magic/Arcane theme
+      accent: deep purple
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: deep purple
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - admonition
+  - pymdownx.details
+  - attr_list
+
+nav:
+  - Home: index.md
+  - Guide:
+      - Getting Started: user_guide/getting_started.md
+      - Core Concepts: user_guide/core_concepts.md
+      - Security & Strict Mode: user_guide/security.md
+      - CLI Reference: user_guide/cli.md
+  - Reference:
+      - Grimorium: reference/grimorium.md
+      - SpellSync: reference/spellsync.md
+      - Adapters: reference/adapters.md
+      - Configuration: reference/config.md
+
+copyright: Copyright &copy; 2026 IAmNo1Special
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/IAmNo1Special/magetools
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/magetools/
