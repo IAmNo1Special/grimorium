@@ -18,8 +18,9 @@ logger = logging.getLogger(__name__)
 class Grimorium(BaseToolset):
     """A magical grimoire toolset for discovering and managing spells.
     This toolset provides two main tools:
-    1. magetools_search_spells: To find available spells.
-    2. magetools_execute_spell: To run a specific spell.
+    1. magetools_discover_grimoriums: To find relevant collections (Grimoriums).
+    2. magetools_discover_spells: To find spells within a Grimorium.
+    3. magetools_execute_spell: To run a specific spell.
     """
 
     def __init__(
