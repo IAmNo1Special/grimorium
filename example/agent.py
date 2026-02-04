@@ -46,7 +46,7 @@ EXAMPLE_DIR = Path(__file__).parent.resolve()
 
 # Instantiate the toolset with explicit root path
 # This ensures magetools.yaml and .magetools are loaded from the example dir
-grimorium = Grimorium(root_path=str(EXAMPLE_DIR))
+grimorium = Grimorium(root_path=str(EXAMPLE_DIR), auto_initialize=False)
 
 # Initialize the root agent
 root_agent = LlmAgent(
@@ -62,6 +62,11 @@ root_agent = LlmAgent(
 
 async def run_grimorium_agent() -> None:
     """Run the root agent with interactive command-line interface."""
+    # Ensure Grimorium is initialized (async pattern)
+    logger.info("Initializing Grimorium...")
+    await grimorium.initialize()
+    logger.info("Grimorium initialized!")
+
     runner = None
     try:
         # Initialize adk services
