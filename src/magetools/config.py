@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 # Default constants
 DEFAULT_MAGETOOLS_DIR = ".magetools"
 DEFAULT_DB_FOLDER = ".chroma_db"
-DEFAULT_MODEL = "gemini-1.5-flash"  # Updated to a stable model name
+DEFAULT_MODEL = "gemini-2.5-flash"
 DEFAULT_EMBEDDING_MODEL = "models/text-embedding-004"
 
 

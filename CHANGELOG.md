@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Dynamic Tool Discovery**: Core engine for identifying and loading Python functions as AI tools.
 - **Strict Mode**: Security enforcement requiring `manifest.json` for all tool collections.
-- **CLI Suite**: `python -m magetools init` and `python -m magetools scan` for collection management.
+- **CLI Suite**: `uv run -m magetools init` and `uv run -m magetools scan` for collection management.
 - **Provider Agnosticism**: Support for Google GenAI with automatic fallback to Mock providers.
 - **Vector Search**: Integrated ChromaDB support for semantic tool lookups.
 - **Modern Packaging**: Full migration to `uv` for dependency management and publishing.

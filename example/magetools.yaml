@@ -1,8 +1,8 @@
 # Magetools Configuration
 # See docs for all options: https://github.com/IAmNo1Special/magetools
 
-# LLM model for generating summaries (gemini-3-flash-preview-preview, etc.)
-model_name: "gemini-3-flash-preview"
+# LLM model for generating summaries (gemini-2.5-flash-preview, etc.)
+model_name: "gemini-2.5-flash"
 
 # Embedding model for semantic search
 embedding_model: "models/text-embedding-004"

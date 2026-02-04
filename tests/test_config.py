@@ -8,7 +8,7 @@ from magetools.config import MageToolsConfig
 def test_config_defaults():
     config = MageToolsConfig()
     assert config.magetools_dir_name == ".magetools"
-    assert config.model_name == "gemini-1.5-flash"
+    assert config.model_name == "gemini-2.5-flash"
 
 
 def test_config_env_override():

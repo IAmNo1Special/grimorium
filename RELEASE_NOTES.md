@@ -9,14 +9,14 @@ Security is our top priority. Magetools now operates in **Strict Mode**, requiri
 
 ### 🛠️ New CLI Suite
 Managing your "Grimoriums" is now easier with built-in commands:
-- `python -m magetools init`: Bootstrap a new collection with a security manifest.
-- `python -m magetools scan`: Audit your tools and verify synchronization status.
+- `uv run -m magetools init`: Bootstrap a new collection with a security manifest.
+- `uv run -m magetools scan`: Audit your tools and verify synchronization status.
 
 ### 🧩 Lean & Optional Dependencies
 The core `magetools` package now only depends on `pyyaml`, keeping your distribution light. Advanced features like Google GenAI summaries or ChromaDB vector search are available via extras:
-- `pip install magetools[google]`
-- `pip install magetools[vectordb]`
-- `pip install magetools[full]` (Includes everything)
+- `uv add magetools[google]`
+- `uv add magetools[vectordb]`
+- `uv add magetools[full]` (Includes everything)
 
 ### 🧪 Comprehensive Test Suite
 Achieved 100% logic coverage across all core modules (`adapters`, `config`, `grimorium`, `spellsync`). The suite uses a mocked architecture, ensuring tests run instantly without external API dependencies.
@@ -29,7 +29,7 @@ Achieved 100% logic coverage across all core modules (`adapters`, `config`, `gri
 ## 📦 Getting Started
 Verify your installation with the new scanner:
 ```bash
-python -m magetools scan
+uv run -m magetools scan
 ```
 
 ---

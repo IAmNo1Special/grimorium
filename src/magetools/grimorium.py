@@ -101,7 +101,6 @@ class Grimorium(BaseToolset):
         self._discover_grimoriums_tool = FunctionTool(func=self.discover_grimoriums)
         self._discover_spells_tool = FunctionTool(func=self.discover_spells)
         self._execute_spell_tool = FunctionTool(func=self.execute_spell)
-        self._search_spells_tool = FunctionTool(func=self.search_spells)
 
         # Auto-initialize for backwards compatibility
         if auto_initialize:
@@ -181,25 +180,6 @@ class Grimorium(BaseToolset):
     def usage_guide(self) -> str:
         """Returns the usage guide instructions for using this toolset."""
         return grimorium_usage_guide
-
-    def search_spells(self, query: str) -> dict[str, Any]:
-        """[DEPRECATED] Search for spells across all collections.
-        Use 'discover_grimoriums' and 'discover_spells' instead.
-        """
-        logger.warning("Agent used deprecated 'search_spells'. Suggesting new flow.")
-
-        # We can still return results but add a hint
-        result = self.spell_sync.find_matching_spells(query)
-
-        if result:
-            return {
-                "status": "success",
-                "message": f"Found {len(result)} spells.",
-                "spells": result,
-                "hint": "DEPRECATED: Please use 'magetools_discover_grimoriums' followed by 'magetools_discover_spells' for better results.",
-            }
-
-        return {"status": "not_found", "message": "No spells found."}
 
     def discover_grimoriums(self, query: str) -> dict[str, Any]:
         """Find relevant Grimoriums (Collections) based on a high-level goal.
@@ -340,7 +320,6 @@ class Grimorium(BaseToolset):
             self._discover_grimoriums_tool,
             self._discover_spells_tool,
             self._execute_spell_tool,
-            self._search_spells_tool,  # Keep for now
         ]
 
     async def close(self) -> None:

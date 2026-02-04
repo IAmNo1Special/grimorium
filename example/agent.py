@@ -51,7 +51,7 @@ grimorium = Grimorium(root_path=str(EXAMPLE_DIR))
 # Initialize the root agent
 root_agent = LlmAgent(
     name="magetools_agent",
-    model="gemini-3-flash-preview",
+    model="gemini-2.5-flash",
     description="Agent that uses magetools to discover and execute spells.",
     instruction=f"""You are an advanced AI assistant with access to magetools.
     Be helpful, concise, and focus on solving the user's request effectively.

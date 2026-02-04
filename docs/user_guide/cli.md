@@ -2,13 +2,13 @@
 
 Magetools provides a command-line interface for managing your tool collections.
 
-## `python -m magetools init`
+## `uv run -m magetools init`
 
 Initialize a new tool collection directory.
 
 **Usage:**
 ```bash
-python -m magetools init <directory>
+uv run -m magetools init <directory>
 ```
 
 **What it does:**
@@ -18,13 +18,13 @@ python -m magetools init <directory>
 
 ---
 
-## `python -m magetools scan`
+## `uv run -m magetools scan`
 
 Audit your tools and verify synchronization status.
 
 **Usage:**
 ```bash
-python -m magetools scan
+uv run -m magetools scan
 ```
 
 **What it does:**

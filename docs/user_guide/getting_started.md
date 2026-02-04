@@ -5,13 +5,13 @@
 Install the core package:
 
 ```bash
-pip install magetools
+uv add magetools
 ```
 
 For full functionality (including Google GenAI and ChromaDB):
 
 ```bash
-pip install magetools[full]
+uv add magetools[full]
 ```
 
 ## Your First Spellbook (Grimorium)
@@ -32,7 +32,7 @@ pip install magetools[full]
 3. **Initialize the Manifest**:
    Magetools requires a manifest for security:
    ```bash
-   python -m magetools init .magetools
+   uv run -m magetools init .magetools
    ```
 
 4. **Use it in Python**:

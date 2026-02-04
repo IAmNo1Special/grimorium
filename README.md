@@ -53,7 +53,7 @@ pip install magetools[full]
 mkdir -p .magetools/file_ops
 
 # 2. Initialize with manifest.json (required for Strict Mode)
-python -m magetools init .magetools/file_ops
+uv run -m magetools init .magetools/file_ops
 ```
 
 ### Add Spells (Tools)
@@ -124,7 +124,7 @@ Collections **require** a `manifest.json` file to load any Python code. This pre
 
 ```bash
 # Enable a collection
-python -m magetools init .magetools/my_collection
+uv run -m magetools init .magetools/my_collection
 ```
 
 **manifest.json example:**
@@ -150,7 +150,7 @@ grimorium = Grimorium(strict_mode=False)
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `GOOGLE_API_KEY` | – | Required for Google GenAI provider |
-| `MAGETOOLS_MODEL` | `gemini-1.5-flash` | LLM model for summaries |
+| `MAGETOOLS_MODEL` | `gemini-2.5-flash` | LLM model for summaries |
 | `MAGETOOLS_DEBUG` | `false` | Enable debug logging |
 
 ### YAML Configuration
@@ -158,7 +158,7 @@ grimorium = Grimorium(strict_mode=False)
 Create `magetools.yaml` in your project root:
 
 ```yaml
-model_name: gemini-2.0-flash
+model_name: gemini-2.5-flash
 embedding_model: models/text-embedding-004
 debug: false
 ```
@@ -166,9 +166,9 @@ debug: false
 ## CLI Reference
 
 ```bash
-python -m magetools init <directory>  # Generate manifest.json
-python -m magetools scan              # Scan and sync spells
-python -m magetools --help            # Show help
+uv run -m magetools init <directory>  # Generate manifest.json
+uv run -m magetools scan              # Scan and sync spells
+uv run -m magetools --help            # Show help
 ```
 
 ## Support
