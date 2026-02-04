@@ -232,4 +232,9 @@ class Grimorium(BaseToolset):
         self, readonly_context: Optional[ReadonlyContext] = None
     ) -> List[BaseTool]:
         """Return the list of tools provided by this toolset."""
-        return [self._search_spells_tool, self._execute_spell_tool]
+        return [
+            self._discover_grimoriums_tool,
+            self._discover_spells_tool,
+            self._execute_spell_tool,
+            self._search_spells_tool,  # Keep for now
+        ]
