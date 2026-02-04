@@ -11,6 +11,10 @@ class EmbeddingProviderProtocol(Protocol):
         """Return the callable embedding function (compatible with VectorStore)."""
         ...
 
+    def generate_content(self, prompt: str) -> str:
+        """Generates text content."""
+        ...
+
 
 @runtime_checkable
 class VectorStoreProtocol(Protocol):
