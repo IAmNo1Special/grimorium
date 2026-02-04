@@ -1,5 +1,5 @@
 [project]
-name = "grimorium"
+name = "magetools"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -8,13 +8,14 @@ authors = [
 ]
 requires-python = ">=3.13"
 dependencies = [
-    "google-genai>=1.32.0",
-    "scikit-learn>=1.7.1",
-    "pyyaml>=6.0.0",
-    "httpx>=0.27.0",
-    "python-dotenv>=1.1.1",
-    "google-adk[a2a]>=1.13.0",
     "chromadb>=1.4.1",
+    "google-adk>=1.23.0",
+    "google-genai>=1.61.0",
+    "google-generativeai>=0.8.6",
+    "httpx>=0.28.1",
+    "python-dotenv>=1.2.1",
+    "pyyaml>=6.0.3",
+    "scikit-learn>=1.8.0",
 ]
 
 [build-system]
