@@ -4,7 +4,7 @@
 
 [![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-20%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-pass-brightgreen.svg)]()
 
 Magetools gives autonomous AI agents scalable access to thousands of tools ("Spells") without overwhelming their context window. It uses a **Hierarchical Active Discovery** pattern to organize tools into collections ("Grimoriums") and lets agents discover only what they need, when they need it.
 
@@ -82,13 +82,10 @@ import asyncio
 from magetools import Grimorium
 
 async def main():
-    # Create the grimorium without auto-initializing
-    grimorium = Grimorium(auto_initialize=False)
+    # Initialize (scans .magetools folder and indexes spells)
+    grimorium = Grimorium()
     
     try:
-        # Asynchronously initialize to discover spells and generate summaries
-        await grimorium.initialize()
-
         # Get tools for your agent
         tools = await grimorium.get_tools()
         
