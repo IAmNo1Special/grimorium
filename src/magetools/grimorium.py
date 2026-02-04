@@ -91,48 +91,80 @@ class Grimorium(BaseToolset):
         return grimorium_usage_guide
 
     def search_spells(self, query: str) -> dict[str, Any]:
-        """Search for spells that match a given description.
-
-        Args:
-            query: A description of the spell or functionality you are looking for.
-                   Example: "calculate factorial" or "send email"
-        Returns:
-            A dictionary containing the search results and metadata of found spells.
+        """[DEPRECATED] Search for spells across all collections.
+        Use 'discover_grimoriums' and 'discover_spells' instead.
         """
-        logger.debug(f"Grimorium searching for: {query}...")
+        logger.warning("Agent used deprecated 'search_spells'. Suggesting new flow.")
+
+        # We can still return results but add a hint
         result = self.spell_sync.find_matching_spells(query)
 
         if result:
-            spell_names = result
-            detailed_spells = {}
-
-            for name in spell_names:
-                try:
-                    func = self.spell_sync.registry[name]
-                    sig = inspect.signature(func)
-                    # Get docstring but clean it up a bit (first line or summary)
-                    doc = inspect.getdoc(func) or "No description available."
-
-                    detailed_spells[name] = {
-                        "description": doc,
-                        "signature": str(sig),
-                    }
-                except Exception as e:
-                    logger.warning(f"Could not inspect spell {name}: {e}")
-                    detailed_spells[name] = {"error": "Details unavailable"}
-
-            logger.debug(f"Found spells: {spell_names}")
             return {
                 "status": "success",
-                "message": f"Found {len(spell_names)} potential spells.",
-                "spells": detailed_spells,
-                "hint": "Use 'magetools_execute_spell' with the exact name of one of these spells and the required arguments from the signature.",
+                "message": f"Found {len(result)} spells.",
+                "spells": result,
+                "hint": "DEPRECATED: Please use 'magetools_discover_grimoriums' followed by 'magetools_discover_spells' for better results.",
             }
 
-        logger.debug("No spells found matching that description.")
+        return {"status": "not_found", "message": "No spells found."}
+
+    def discover_grimoriums(self, query: str) -> dict[str, Any]:
+        """Find relevant Grimoriums (Collections) based on a high-level goal.
+
+        Args:
+            query: High-level description of what you want to achieve.
+                   Example: "process data", "manage files", "handle audio"
+        """
+        results = self.spell_sync.find_relevant_grimoriums(query)
+        if not results:
+            return {"status": "not_found", "message": "No relevant Grimoriums found."}
+
+        # Simplify output for the agent
+        simple_results = []
+        for r in results:
+            simple_results.append(
+                {
+                    "id": r["grimorium_id"],
+                    "description": r["description"][:200] + "...",  # Truncate
+                }
+            )
+
         return {
-            "status": "not_found",
-            "message": "No spells found matching that description. Try a different query.",
+            "status": "success",
+            "grimoriums": simple_results,
+            "next_step": "Use 'magetools_discover_spells(grimorium_id, query)' to find specific tools.",
+        }
+
+    def discover_spells(self, grimorium_id: str, query: str) -> dict[str, Any]:
+        """Find specific spells (tools) within a selected Grimorium.
+
+        Args:
+            grimorium_id: The ID of the Grimorium to search (found via discover_grimoriums).
+            query: Specific action you want to perform.
+        """
+        spell_ids = self.spell_sync.find_spells_within_grimorium(grimorium_id, query)
+
+        if not spell_ids:
+            return {
+                "status": "not_found",
+                "message": f"No spells found in '{grimorium_id}' matching '{query}'.",
+            }
+
+        detailed_spells = {}
+        for name in spell_ids:
+            try:
+                func = self.spell_sync.registry[name]
+                sig = str(inspect.signature(func))
+                doc = inspect.getdoc(func) or "No description."
+                detailed_spells[name] = {"signature": sig, "description": doc}
+            except Exception:
+                continue
+
+        return {
+            "status": "success",
+            "grimorium": grimorium_id,
+            "spells": detailed_spells,
         }
 
     async def execute_spell(
