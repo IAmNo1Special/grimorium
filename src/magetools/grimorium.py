@@ -81,6 +81,7 @@ class Grimorium(BaseToolset):
             self.spell_sync.MAGETOOLS_ROOT, registry=self.spell_sync.registry
         )
         self.spell_sync.sync_spells()
+        self.spell_sync.sync_grimoriums_metadata()  # Ensure index is up to date
         # Create the tools that will be exposed to the agent
         self._search_spells_tool = FunctionTool(func=self.search_spells)
         self._execute_spell_tool = FunctionTool(func=self.execute_spell)
