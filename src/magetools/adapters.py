@@ -4,8 +4,12 @@ from typing import Any, List
 
 import chromadb
 from chromadb.utils import embedding_functions
+from dotenv import load_dotenv
+from google import genai
 
 from .interfaces import EmbeddingProviderProtocol, VectorStoreProtocol
+
+load_dotenv()
 
 
 class GoogleGenAIProvider(EmbeddingProviderProtocol):
@@ -15,6 +19,15 @@ class GoogleGenAIProvider(EmbeddingProviderProtocol):
         return embedding_functions.GoogleGenerativeAiEmbeddingFunction(
             task_type="SEMANTIC_SIMILARITY"
         )
+
+    def generate_content(self, prompt: str) -> str:
+        """Generates content using Google Gemini model."""
+
+        client = genai.Client()
+        response = client.models.generate_content(
+            model="gemini-3-flash-preview", contents=prompt
+        )
+        return response.text
 
 
 class ChromaVectorStore(VectorStoreProtocol):
